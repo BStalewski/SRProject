@@ -15,13 +15,19 @@ class Client:
         parser.read( ip_file )
         ips = [t[1] for t in parser.items('IP')]
         print 'Read IPs from file:'
+        self.print_ips( ips )
+        #for (i, ip) in enumerate( ips ):
+        #    print '[%d] %s' % (i+1, ip)
+        return ips
+
+    def print_ips( self, ips ):
         for (i, ip) in enumerate( ips ):
             print '[%d] %s' % (i+1, ip)
-        return ips
 
     def start( self ):
         ip_count = len( self.ips )
         while True:
+            self.print_ips( self.ips )
             nr = self.chooseServer()
             if nr in ['q', 'Q']:
                 print 'Koniec dzialania klienta'
@@ -32,23 +38,28 @@ class Client:
                 print 'Nie mozna polaczyc sie z tym serwerem'
                 continue
             
-            operation = self.menu()
-            operation_data = self.getOperationData( operation )
+            while True:
+                operation = self.menu()
+                    
+                operation_data = self.getOperationData( operation )
+                msg = self.prepareMessage( operation, operation_data )
+                request = self.fillOutMsg( json.dumps( msg ) )
 
-            msg = self.prepareMessage( operation, operation_data )
-            request = self.fillOutMsg( json.dumps( msg ) )
-            sentSize = conn.send( request )
+                sentSize = conn.send( request )
 
-            if sentSize == 0:
-                print 'Blad polaczenia z serwerem'
-            else:
-                print 'Otrzymano odpowiedz z serwera'
-                response = conn.recv( self.msgSize )
-                decodedResponse = self.decodeResponse( response )
-                self.showResponse( decodedResponse )
+                if sentSize == 0:
+                    print 'Blad polaczenia z serwerem'
+                else:
+                    if operation == '5':
+                        conn.shutdown( socket.SHUT_RDWR )
+                        conn.close()
+                        break
+                    else:
+                        print 'Otrzymano odpowiedz z serwera'
+                        response = conn.recv( self.msgSize )
+                        decodedResponse = self.decodeResponse( response )
+                        self.showResponse( decodedResponse )
 
-            conn.shutdown( socket.SHUT_RDWR )
-            conn.close()
 
     def menu( self ):
         operation = None
@@ -177,11 +188,9 @@ class Client:
         elif response['type'] == 'GETALL':
             print 'Zawartosc bazy danych:'
             for name, value in response['data'].iteritems():
-                print '%s = %d' % (response['data']['name'], response['data']['value'])
+                print '%s = %d' % (name, value)
         else:
             raise RuntimeError( 'Unknown response type %s' % response['type'] )
-
-        print response
 
     def getValue( self, name ):
         pass
