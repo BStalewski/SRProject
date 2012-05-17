@@ -3,7 +3,7 @@ import simplejson as json
 from ConfigParser import ConfigParser
 
 import common
-
+from db import DB
 
 class Server:
     def __init__( self, ip_file, port, myNr, msgSize=100 ):
@@ -11,6 +11,7 @@ class Server:
         self.port = port
         self.myNr = myNr
         self.msgSize = msgSize
+        self.db = DB()
 
     def read_ip_file( self, ip_file ):
         parser = ConfigParser()
@@ -39,8 +40,7 @@ class Server:
             else:
                 msg = self.decodeRequest( request )
                 print '[SERVER] Message received =', msg
-                self.handleConnection( msg['data'] )
-                response = self.prepareResponse( msg['data'] )
+                response = self.prepareResponse( msg )
                 filledResponse = common.fillOutMsg( response, self.msgSize )
                 
                 sentSize = csocket.send( filledResponse )
@@ -57,10 +57,11 @@ class Server:
         return json.loads( json_request )
 
     def prepareResponse( self, msg ):
+        result = self.handleConnection( msg )
         if msg['type'] == 'GET':
             response = {
                 'name': msg['name'],
-                'value': -1
+                'value': result
             }
         elif msg['type'] == 'SET':
             response = {
@@ -72,22 +73,18 @@ class Server:
                 'name': msg['name']
             }
         else:
-            response = [
-                { 'name': 'a', 'value': -1 },
-                { 'name': 'b', 'value': -2 },
-                { 'name': 'c', 'value': -3 }
-            ]
+            response = result
         # exit is not handled
         return json.dumps( response )
 
     def handleConnection( self, msg ):
         oper = msg.get( 'type' )
         if oper == 'GET':
-            self.handleGet( msg['name'] )
+            return self.handleGet( msg['name'] )
         elif oper == 'SET':
             self.handleSet( msg['name'], msg['value'] )
         elif oper == 'DEL':
-            self.handleDel( msg['name'] )
+            return self.handleDel( msg['name'] )
         elif oper == 'GETALL':
             self.handlePrint()
         else:
@@ -95,15 +92,19 @@ class Server:
 
     def handleGet( self, name ):
         print 'GET from db %s' % name
+        return self.db.getValue( name )
 
     def handleSet( self, name, value ):
         print 'SET in db %s = %d' % (name, value)
+        self.db.setValue( name, value )
 
     def handleDel( self, name ):
         print 'DEL in db %s' % name
+        self.db.delValue( name )
 
     def handlePrint( self ):
         print 'GET all vars to print'
+        return self.db.getAll()
 
     
 if __name__ == '__main__':

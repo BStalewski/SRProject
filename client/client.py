@@ -5,10 +5,9 @@ import socket
 import simplejson as json
 
 class Client:
-    def __init__( self, ip_file, port, myNr, msgSize=100 ):
+    def __init__( self, ip_file, port, msgSize=100 ):
         self.ips = self.read_ip_file( ip_file )
         self.port = port
-        self.myNr = myNr
         self.msgSize = msgSize
 
     def read_ip_file( self, ip_file ):
@@ -35,34 +34,11 @@ class Client:
             
             operation = self.menu()
             operation_data = self.getOperationData( operation )
+
             msg = self.prepareMessage( operation, operation_data )
-            '''
-            try:
-                if operation == '1':
-                    name, value = self.getValue()
-                    print '%s wynosi %d' % ( name, value )
-                elif operation == '2':
-                    name, value, result = self.setValue()
-                    print 'Ustawienie %s na %d zakonczone %s' % ( name, value, result )
-                elif operation == '3':
-                    name, result = self.deleteValue()
-                    print 'Usuniecie %s zakonczone %s' % ( name, result )
-                elif operation == '4':
-                    pairs = self.getValues()
-                    for name, value in pairs:
-                        print '%s wynosi %d' % ( name, value )
-            except RuntimeError as e:
-                print 'Wystapil blad'
-                print e
-            '''
-            
-            fullMsg = {
-                'sender': self.myNr,
-                'clocks': [0, 0, 0, 0],
-                'data': msg
-            }
-            filledMsg = self.fillOutMsg( json.dumps( fullMsg ) )
-            sentSize = conn.send( filledMsg )
+            request = self.fillOutMsg( json.dumps( msg ) )
+            sentSize = conn.send( request )
+
             if sentSize == 0:
                 print 'Blad polaczenia z serwerem'
             else:
@@ -199,3 +175,8 @@ class Client:
     def unsetServerDataLose( self ):
         pass
 
+if __name__ == '__main__':
+    ip_file = 'ips.txt'
+    port = 4321
+    client = Client( ip_file, port )
+    client.start()

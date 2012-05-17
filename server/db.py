@@ -1,8 +1,8 @@
 import sqlite3
 
 class DB:
-    def __init__( self, filename, purge=True ):
-        self.conn = sqlite3.connect('data.db')
+    def __init__( self, filename='data.db', purge=True ):
+        self.conn = sqlite3.connect( filename )
         if purge:
             self.purge()
 
@@ -13,7 +13,7 @@ class DB:
         
     def getValue( self, name ):
         self.conn.execute('SELECT value FROM numbers WHERE name=?', name)
-        return self.conn.fetchone()
+        return self.conn.fetchone()[0]
 
     def setValue( self, name, value ):
         self.conn.execute('INSERT INTO numbers VALUES (?, ?)', (name, value))
