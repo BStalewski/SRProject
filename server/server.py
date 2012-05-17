@@ -73,8 +73,11 @@ class Server:
                 'name': msg['name']
             }
         else:
-            response = result
+            response = {
+                'data': result
+            }
         # exit is not handled
+        response['type'] = msg['type']
         return json.dumps( response )
 
     def handleConnection( self, msg ):

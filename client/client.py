@@ -42,8 +42,10 @@ class Client:
             if sentSize == 0:
                 print 'Blad polaczenia z serwerem'
             else:
+                print 'Otrzymano odpowiedz z serwera'
                 response = conn.recv( self.msgSize )
-                print response
+                decoded_response = self.decodeResponse( response )
+                self.showResponse( response )
 
             conn.shutdown( socket.SHUT_RDWR )
             conn.close()
@@ -154,6 +156,26 @@ class Client:
         filledMsg = msg + filling
 
         return filledMsg
+
+    def decodeResponse( self, response ):
+        json_response = response.rstrip('#')
+        return json.loads( json_response )
+
+    def showResponse( self, response ):
+        if response['type'] == 'GET':
+            print 'Pobrano: %s = %d' % (response['name'], response['value'])
+        if response['type'] == 'SET':
+            print 'Ustawiono: %s = %d' % (response['name'], response['value'])
+        if response['type'] == 'DEL':
+            print 'Usunieto: %s' % response['name']
+        if response['type'] == 'GETALL':
+            print 'Zawartosc bazy danych:'
+            for name, value in response['data'].iteritems():
+                print '%s = %d' % (response['data']['name'], response['data']['value'])
+        else:
+            raise RuntimeError( 'Unknown response type %s' % response['type'] )
+
+        print response
 
     def getValue( self, name ):
         pass
