@@ -44,9 +44,9 @@ class Server:
                 filledResponse = common.fillOutMsg( response, self.msgSize )
                 
                 sentSize = csocket.send( filledResponse )
-                print '[SERVER] Message sent =', msg
+                print '[SERVER] Message sent =', response
                 if sentSize == 0:
-                    print 'Blad polaczenia z klientem'
+                    print 'Unable to connect to client'
 
             csocket.shutdown( socket.SHUT_RDWR )
             csocket.close()

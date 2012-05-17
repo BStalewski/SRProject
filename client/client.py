@@ -98,9 +98,10 @@ class Client:
             name = raw_input('$')
             data = (name,)
         elif op == '2':
-            print 'Podaj nazwe i nowa wartosc'
+            print 'Podaj nazwe'
             name = raw_input('$')
-            value = raw_input('$')
+            print 'Podaj wartosc'
+            value = int( raw_input('$') )
             data = (name, value)
         elif op == '3':
             print 'Podaj nazwe do usuniecia'
