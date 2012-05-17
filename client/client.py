@@ -14,7 +14,10 @@ class Client:
     def read_ip_file( self, ip_file ):
         parser = ConfigParser()
         parser.read( ip_file )
-        ips = [t for t in parser.items('IP')]
+        ips = [t[1] for t in parser.items('IP')]
+        print 'Read IPs from file:'
+        for (i, ip) in enumerate( ips ):
+            print '[%d] %s' % (i+1, ip)
         return ips
 
     def start( self ):
@@ -25,7 +28,7 @@ class Client:
                 print 'Koniec dzialania klienta'
                 break
                         
-            conn = self.connectToServer( nr )
+            conn = self.connectToServer( nr - 1 )
             if conn is None:
                 print 'Nie mozna polaczyc sie z tym serwerem'
                 continue
@@ -33,6 +36,7 @@ class Client:
             operation = self.menu()
             operation_data = self.get_operation_data( operation )
             msg = self.prepareMessage( operation, operation_data )
+            '''
             try:
                 if operation == '1':
                     name, value = self.getValue()
@@ -50,6 +54,7 @@ class Client:
             except RuntimeError as e:
                 print 'Wystapil blad'
                 print e
+            '''
             
             fullMsg = {
                 'sender': self.myNr,
@@ -57,15 +62,15 @@ class Client:
                 'data': msg
             }
             filledMsg = self.fillOutMsg( json.dumps( fullMsg ) )
-            sentSize = s.send( json.dumps( filledMsg ) )
+            sentSize = conn.send( json.dumps( filledMsg ) )
             if sentSize == 0:
                 print 'Blad polaczenia z serwerem'
             else:
-                received = s.recv( response )
+                response = conn.recv( self.msgSize )
                 print response
 
-            s.shutdown()
-            s.close()
+            conn.shutdown()
+            conn.close()
 
     def menu( self ):
         operation = None
@@ -82,8 +87,9 @@ class Client:
     def connectToServer( self, nr ):
         ip = self.ips[ nr ]
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+        print 'TRY connect to %s:%s' % (ip, self.port)
         try:
-            s.connect( (ip, port) )
+            s.connect( (ip, self.port) )
         except:
             return None
         return s
@@ -160,7 +166,7 @@ class Client:
         missingSize = self.msgSize - len( msg )
         if missingSize < 0:
             raise RuntimeError('Message too big')
-        filling = [ '#' for _ in range( missingSize ) ]
+        filling = ''.join( [ '#' for _ in range( missingSize ) ] )
         filledMsg = msg + filling
 
         return filledMsg
