@@ -34,7 +34,7 @@ class Client:
                 continue
             
             operation = self.menu()
-            operation_data = self.get_operation_data( operation )
+            operation_data = self.getOperationData( operation )
             msg = self.prepareMessage( operation, operation_data )
             '''
             try:
@@ -62,14 +62,14 @@ class Client:
                 'data': msg
             }
             filledMsg = self.fillOutMsg( json.dumps( fullMsg ) )
-            sentSize = conn.send( json.dumps( filledMsg ) )
+            sentSize = conn.send( filledMsg )
             if sentSize == 0:
                 print 'Blad polaczenia z serwerem'
             else:
                 response = conn.recv( self.msgSize )
                 print response
 
-            conn.shutdown()
+            conn.shutdown( socket.SHUT_RDWR )
             conn.close()
 
     def menu( self ):
@@ -80,6 +80,7 @@ class Client:
             print '(2) Ustaw wartosc'
             print '(3) Usun wartosc'
             print '(4) Wypisz wszystkie wartosci'
+            print '(5) Zakoncz polaczenie'
             operation = raw_input('$')
 
         return operation
@@ -115,7 +116,7 @@ class Client:
                 break
         return nr
 
-    def get_operation_data( self, op ):
+    def getOperationData( self, op ):
         if op == '1':
             print 'Podaj nazwe do pobrania'
             name = raw_input('$')
@@ -131,6 +132,8 @@ class Client:
             data = (name,)
         elif op == '4':
             data = None
+        elif op == '5':
+            data = None
         else:
             raise RuntimeError('Bad operation number %s' % op)
 
@@ -140,7 +143,7 @@ class Client:
         if op == '1':
             msg = {
                 'type': 'GET',
-                'name': data
+                'name': data[0]
             }
         elif op == '2':
             msg = {
@@ -151,11 +154,15 @@ class Client:
         elif op == '3':
             msg = { 
                 'type': 'DEL',
-                'name': data
+                'name': data[0]
             }
         elif op == '4':
             msg = { 
                 'type': 'GETALL'
+            }
+        elif op == '5':
+            msg = {
+                'type': 'END'
             }
         else:
             raise RuntimeError('Bad operation number %s' % op)
