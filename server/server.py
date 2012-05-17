@@ -2,7 +2,7 @@ import socket
 import simplejson as json
 from ConfigParser import ConfigParser
 
-from common import fillOutMsg
+import common
 
 
 class Server:
@@ -12,54 +12,64 @@ class Server:
         self.myNr = myNr
         self.msgSize = msgSize
 
-    def read_ip_file( self ):
+    def read_ip_file( self, ip_file ):
         parser = ConfigParser()
         parser.read( ip_file )
         ips = [t[1] for t in parser.items('IP')]
         print 'Read IPs from file:'
+        for (i, ip) in enumerate( ips ):
             print '[%d] %s' % (i+1, ip)
         return ips
 
     def start( self ):
+        print '[SERVER] Starting server'
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-
-        s.bind( ('192.168.1.14', port) )
+        print '[SERVER] Socket created'
+        s.bind( ('192.168.1.14', self.port) )
         s.listen(5)
+        print '[SERVER] Listening'
 
         while 1:
             (csocket, adr) = s.accept()
+            print '[SERVER] Connection from', adr
             try:
-                msg = csocket.recv(self.msgSize)
+                request = csocket.recv(self.msgSize)
             except:
                 print 'Connection broken'
             else:
-                self.handleConnection( msg )
-                response = self.prepareResponse( msg )
+                msg = self.decodeRequest( request )
+                print '[SERVER] Message received =', msg
+                self.handleConnection( msg['data'] )
+                response = self.prepareResponse( msg['data'] )
                 filledResponse = common.fillOutMsg( response, self.msgSize )
                 
                 sentSize = csocket.send( filledResponse )
+                print '[SERVER] Message sent =', msg
                 if sentSize == 0:
                     print 'Blad polaczenia z klientem'
 
-            csocket.shutdown()
+            csocket.shutdown( socket.SHUT_RDWR )
             csocket.close()
+            print '[SERVER] Connection closed with', adr
 
-    def prepareResponse( self, fullMsg ):
-        json_msg = fullMsg.rstrip('#')
-        msg = json.loads( msg )
+    def decodeRequest( self, request ):
+        json_request = request.rstrip('#')
+        return json.loads( json_request )
+
+    def prepareResponse( self, msg ):
         if msg['type'] == 'GET':
             response = {
-                'name': name,
+                'name': msg['name'],
                 'value': -1
             }
         elif msg['type'] == 'SET':
             response = {
-                'name': name,
-                'value': value,
+                'name': msg['name'],
+                'value': msg['value'],
             }
         elif msg['type'] == 'DEL':
             response = {
-                'name': name
+                'name': msg['name']
             }
         else:
             response = [
