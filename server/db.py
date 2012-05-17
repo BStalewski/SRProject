@@ -14,7 +14,7 @@ class DB:
         
     def getValue( self, name ):
         cursor = self.conn.cursor()
-        cursor.execute('SELECT value FROM numbers WHERE name=?', name)
+        cursor.execute('SELECT value FROM numbers WHERE name = ?', (name,))
         result = cursor.fetchone()
         return None if result is None else result[0]
 
@@ -25,7 +25,7 @@ class DB:
 
     def delValue( self, name ):
         cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM numbers WHERE name=?', name)
+        cursor.execute('DELETE FROM numbers WHERE name = ?', (name,))
         self.conn.commit()
 
     def getAll( self ):
