@@ -90,7 +90,7 @@ class Server:
         elif oper == 'DEL':
             return self.handleDel( msg['name'] )
         elif oper == 'GETALL':
-            self.handlePrint()
+            return self.handlePrint()
         else:
             raise RuntimeError('Unknown operation type %s' % oper)
 
