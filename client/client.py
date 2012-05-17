@@ -44,8 +44,8 @@ class Client:
             else:
                 print 'Otrzymano odpowiedz z serwera'
                 response = conn.recv( self.msgSize )
-                decoded_response = self.decodeResponse( response )
-                self.showResponse( response )
+                decodedResponse = self.decodeResponse( response )
+                self.showResponse( decodedResponse )
 
             conn.shutdown( socket.SHUT_RDWR )
             conn.close()
@@ -163,12 +163,18 @@ class Client:
 
     def showResponse( self, response ):
         if response['type'] == 'GET':
-            print 'Pobrano: %s = %d' % (response['name'], response['value'])
-        if response['type'] == 'SET':
+            if response['value'] is None:
+                print 'Zmienna %s nie istnieje' % response['name']
+            else:
+                print 'Pobrano: %s = %d' % (response['name'], response['value'])
+        elif response['type'] == 'SET':
             print 'Ustawiono: %s = %d' % (response['name'], response['value'])
-        if response['type'] == 'DEL':
-            print 'Usunieto: %s' % response['name']
-        if response['type'] == 'GETALL':
+        elif response['type'] == 'DEL':
+            if response['deleted']:
+                print 'Usunieto: %s' % response['name']
+            else:
+                print 'Zmienna %s nie istnieje w bazie' % response['name']
+        elif response['type'] == 'GETALL':
             print 'Zawartosc bazy danych:'
             for name, value in response['data'].iteritems():
                 print '%s = %d' % (response['data']['name'], response['data']['value'])

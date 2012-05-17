@@ -30,7 +30,7 @@ class DB:
 
     def getAll( self ):
         cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM VALUES')
+        cursor.execute('SELECT * FROM numbers')
         allData = cursor.fetchall()
         return dict( allData )
 

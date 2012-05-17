@@ -70,7 +70,8 @@ class Server:
             }
         elif msg['type'] == 'DEL':
             response = {
-                'name': msg['name']
+                'name': msg['name'],
+                'deleted': result
             }
         else:
             response = {
@@ -103,7 +104,11 @@ class Server:
 
     def handleDel( self, name ):
         print 'DEL in db %s' % name
+        if self.db.getValue( name ) is None:
+            return False
+
         self.db.delValue( name )
+        return True
 
     def handlePrint( self ):
         print 'GET all vars to print'
