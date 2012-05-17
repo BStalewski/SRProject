@@ -15,7 +15,8 @@ class DB:
     def getValue( self, name ):
         cursor = self.conn.cursor()
         cursor.execute('SELECT value FROM numbers WHERE name=?', name)
-        return cursor.fetchone()[0]
+        result = cursor.fetchone()
+        return None if result is None else result[0]
 
     def setValue( self, name, value ):
         cursor = self.conn.cursor()
