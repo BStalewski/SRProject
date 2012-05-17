@@ -7,24 +7,29 @@ class DB:
             self.purge()
 
     def purge( self ):
-        self.conn.execute('DROP TABLE values')
-        self.conn.execute('CREATE TABLE numbers(name text, value integer)')
+        cursor = self.conn.cursor()
+        cursor.execute('DROP TABLE IF EXISTS numbers')
+        cursor.execute('CREATE TABLE numbers(name text, value integer)')
         self.conn.commit()
         
     def getValue( self, name ):
-        self.conn.execute('SELECT value FROM numbers WHERE name=?', name)
-        return self.conn.fetchone()[0]
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT value FROM numbers WHERE name=?', name)
+        return cursor.fetchone()[0]
 
     def setValue( self, name, value ):
-        self.conn.execute('INSERT INTO numbers VALUES (?, ?)', (name, value))
+        cursor = self.conn.cursor()
+        cursor.execute('INSERT INTO numbers VALUES (?, ?)', (name, value))
         self.conn.commit()
 
     def delValue( self, name ):
-        self.conn.execute('DELETE FROM numbers WHERE name=?', name)
+        cursor = self.conn.cursor()
+        cursor.execute('DELETE FROM numbers WHERE name=?', name)
         self.conn.commit()
 
     def getAll( self ):
-        self.conn.execute('SELECT * FROM VALUES')
-        allData = self.conn.fetchall()
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM VALUES')
+        allData = cursor.fetchall()
         return dict( allData )
 
