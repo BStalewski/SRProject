@@ -30,27 +30,32 @@ class Server:
         s.listen(5)
         print '[SERVER] Listening'
 
-        while 1:
+        while True:
             (csocket, adr) = s.accept()
-            print '[SERVER] Connection from', adr
-            try:
-                request = csocket.recv(self.msgSize)
-            except:
-                print 'Connection broken'
-            else:
-                msg = self.decodeRequest( request )
-                print '[SERVER] Message received =', msg
-                response = self.prepareResponse( msg )
-                filledResponse = common.fillOutMsg( response, self.msgSize )
-                
-                sentSize = csocket.send( filledResponse )
-                print '[SERVER] Message sent =', response
-                if sentSize == 0:
-                    print 'Unable to connect to client'
+            while True:
+                print '[SERVER] Connection from', adr
+                try:
+                    request = csocket.recv(self.msgSize)
+                except:
+                    print 'Connection broken'
+                else:
+                    msg = self.decodeRequest( request )
+                    print '[SERVER] Message received =', msg
 
-            csocket.shutdown( socket.SHUT_RDWR )
-            csocket.close()
-            print '[SERVER] Connection closed with', adr
+                    if msg['type'] == 'END':
+                        csocket.shutdown( socket.SHUT_RDWR )
+                        csocket.close()
+                        print '[SERVER] Connection closed with', adr
+                        break
+
+                    response = self.prepareResponse( msg )
+                    filledResponse = common.fillOutMsg( response, self.msgSize )
+                    
+                    sentSize = csocket.send( filledResponse )
+                    print '[SERVER] Message sent =', response
+                    if sentSize == 0:
+                        print 'Unable to connect to client'
+
 
     def decodeRequest( self, request ):
         json_request = request.rstrip('#')
