@@ -1,4 +1,4 @@
-# Server code for reliable broadcast
+# Simple server for testing purpose
 
 import socket
 

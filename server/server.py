@@ -6,16 +6,16 @@ import common
 from db import DB
 
 class Server:
-    def __init__( self, ip_file, port, msgSize=100 ):
-        self.ips = self.read_ip_file( ip_file )
+    def __init__( self, ipFile, port, msgSize=100 ):
+        self.ips = self.readIpFile( ipFile )
         self.port = port
         self.myNr = self.findMyIndex( self.ips )
         self.msgSize = msgSize
         self.db = DB()
 
-    def readIpFile( self, ip_file ):
+    def readIpFile( self, ipFile ):
         parser = ConfigParser()
-        parser.read( ip_file )
+        parser.read( ipFile )
         ips = [t[1] for t in parser.items('IP')]
         print 'Read IPs from file:'
         for (i, ip) in enumerate( ips ):
@@ -69,8 +69,8 @@ class Server:
 
 
     def decodeRequest( self, request ):
-        json_request = request.rstrip('#')
-        return json.loads( json_request )
+        jsonRequest = request.rstrip('#')
+        return json.loads( jsonRequest )
 
     def prepareResponse( self, msg ):
         result = self.handleConnection( msg )
@@ -132,8 +132,8 @@ class Server:
 
     
 if __name__ == '__main__':
-    ip_file = 'ips.txt'
+    ipFile = 'ips.txt'
     port = 4321
-    server = Server( ip_file, port )
+    server = Server( ipFile, port )
     server.start()
 

@@ -5,17 +5,17 @@ import socket
 import simplejson as json
 
 class Client:
-    def __init__( self, ip_file, port, msgSize=100 ):
-        self.ips = self.read_ip_file( ip_file )
+    def __init__( self, ipFile, port, msgSize=100 ):
+        self.ips = self.readIpFile( ipFile )
         self.port = port
         self.msgSize = msgSize
 
-    def readIpFile( self, ip_file ):
+    def readIpFile( self, ipFile ):
         parser = ConfigParser()
-        parser.read( ip_file )
+        parser.read( ipFile )
         ips = [t[1] for t in parser.items('IP')]
         print 'Wczytano nastepujace adresy z pliku:'
-        self.print_ips( ips )
+        self.printIps( ips )
         return ips
 
     def printIps( self, ips ):
@@ -23,9 +23,11 @@ class Client:
             print '[%d] %s' % (i+1, ip)
 
     def start( self ):
-        ip_count = len( self.ips )
+        print '***************************************************************'
+        print '****************** WITAJ DROGI UZYTKOWNIKU!! ******************'
+        print '******** DZIEKUJEMY ZA SKORZYSTANIE Z NASZEGO PROGRAMU ********'
+        print '***************************************************************'
         while True:
-            self.print_ips( self.ips )
             nr = self.chooseServer()
             if nr in ['q', 'Q']:
                 print 'Koniec dzialania klienta'
@@ -39,8 +41,8 @@ class Client:
             while True:
                 operation = self.menu()
                     
-                operation_data = self.getOperationData( operation )
-                msg = self.prepareMessage( operation, operation_data )
+                operationData = self.getOperationData( operation )
+                msg = self.prepareMessage( operation, operationData )
                 request = self.fillOutMsg( json.dumps( msg ) )
 
                 sentSize = conn.send( request )
@@ -83,22 +85,25 @@ class Client:
         return s
 
     def chooseServer( self ):
-        ip_count = len( self.ips )
-        print 'Polacz z serwerem. Wybierz liczbe 1 - %d, aby polaczyc sie' % ip_count
-        print 'z wybranym serwerem lub %d, aby polaczyc sie z losowym serwerem.' % (ip_count + 1)
+        ipCount = len( self.ips )
+        print 'Dostepne serwery:'
+        self.printIps( self.ips )
+        print 'Polacz sie z serwerem lub zakoncz wyjdz z programu.'
+        print 'Wpisz liczbe 1 - %d, aby polaczyc sie z wybranym serwerem' % ipCount
+        print 'lub %d, aby polaczyc sie z losowym serwerem.' % (ipCount + 1)
         print 'Wpisz Q lub q, aby zakonczyc program.'
         while True:
-            user_input = raw_input('$')
+            userInput = raw_input('$')
             try:
-                nr = int( user_input )
-                if nr < 1 or nr > ip_count + 1:
+                nr = int( userInput )
+                if nr < 1 or nr > ipCount + 1:
                     print 'Bledny numer. Podaj jeszcze raz'
-                elif nr == ip_count + 1:
-                    nr = randint( 1, ip_count )
+                elif nr == ipCount + 1:
+                    nr = randint( 1, ipCount )
                     print 'Wybrano losowy serwer numer:', nr
             except:
-                if user_input in ['q', 'Q']:
-                    return user_input
+                if userInput in ['q', 'Q']:
+                    return userInput
             else:
                 break
         return nr
@@ -167,8 +172,8 @@ class Client:
         return filledMsg
 
     def decodeResponse( self, response ):
-        json_response = response.rstrip('#')
-        return json.loads( json_response )
+        jsonResponse = response.rstrip('#')
+        return json.loads( jsonResponse )
 
     def showResponse( self, response ):
         if response['type'] == 'GET':
@@ -212,7 +217,7 @@ class Client:
         pass
 
 if __name__ == '__main__':
-    ip_file = 'ips.txt'
+    ipFile = 'ips.txt'
     port = 4321
-    client = Client( ip_file, port )
+    client = Client( ipFile, port )
     client.start()
