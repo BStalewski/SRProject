@@ -6,12 +6,14 @@ import common
 from db import DB
 
 class Server:
-    def __init__( self, ipFile, port, msgSize=100 ):
+    def __init__( self, ipFile, port, msgSize=100, maxConn=5 ):
         self.ips = self.readIpFile( ipFile )
         self.port = port
         self.myNr = self.findMyIndex( self.ips )
+        self.ip = self.ips[ self.myNr ]
         self.msgSize = msgSize
         self.db = DB()
+        self.maxConnetions = maxConn
 
     def readIpFile( self, ipFile ):
         parser = ConfigParser()
@@ -64,8 +66,8 @@ class Server:
         print '[SERVER] Starting server'
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         print '[SERVER] Socket created'
-        s.bind( ('192.168.1.14', self.port) )
-        s.listen(5)
+        s.bind( (self.ip, self.port) )
+        s.listen( self.maxConn )
         print '[SERVER] Listening'
 
         while True:
