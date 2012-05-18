@@ -23,7 +23,34 @@ class Server:
         return ips
 
     def findMyIndex( self, ips ):
-        myIps = socket.gethostbyname_ex(socket.gethostname())[2]
+        import os
+        if os.name == 'nt':
+            myIps = socket.gethostbyname_ex(socket.gethostname())[2]
+        else:
+            # solution to get ip in LAN proposed by smerlin on
+            # http://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
+            import fcntl
+            import struct
+            def get_interface_ip(ifname):
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                return socket.inet_ntoa(fcntl.ioctl( s.fileno(),
+                                                     0x8915,  # SIOCGIFADDR
+                                                     struct.pack('256s', ifname[:15])
+                                                    )[20:24])
+            ip = socket.gethostbyname(socket.gethostname())
+            myIps = []
+            if not ip.startswith('127.'):
+                myIps = [ ip ]
+            else:
+                interfaces = ['eth0','eth1','eth2','wlan0','wlan1','wifi0','ath0','ath1','ppp0']
+                for ifname in interfaces:
+                    try:
+                        ip = get_interface_ip(ifname)
+                    except IOError:
+                        pass
+                    else:
+                        myIps.append( ip )
+            
         for ip in myIps:
             try:
                 index = ips.index( ip )
