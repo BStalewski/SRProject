@@ -93,7 +93,7 @@ class Server:
                     
                     sentSize = csocket.send( filledResponse )
                     print '[SERVER] Message sent =', response
-                    if sentSize == 0:http://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
+                    if sentSize == 0:
                         print 'Unable to connect to client'
 
 
