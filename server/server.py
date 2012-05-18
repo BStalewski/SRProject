@@ -29,30 +29,7 @@ class Server:
         if os.name == 'nt':
             myIps = socket.gethostbyname_ex(socket.gethostname())[2]
         else:
-            # solution to get ip in LAN proposed by smerlin on
-            # http://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
-            import fcntl
-            import struct
-            def get_interface_ip(ifname):
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                return socket.inet_ntoa(fcntl.ioctl( s.fileno(),
-                                                     0x8915,  # SIOCGIFADDR
-                                                     struct.pack('256s', ifname[:15])
-                                                    )[20:24])
-            ip = socket.gethostbyname(socket.gethostname())
-            myIps = []
-            if not ip.startswith('127.'):
-                myIps = [ ip ]
-            else:
-                interfaces = ['eth0','eth1','eth2','wlan0','wlan1','wifi0','ath0','ath1','ppp0']
-                for ifname in interfaces:
-                    try:
-                        ip = get_interface_ip(ifname)
-                    except IOError:
-                        pass
-                    else:
-                        myIps.append( ip )
-            
+            myIps = findLinuxIps()
         for ip in myIps:
             try:
                 index = ips.index( ip )
@@ -68,7 +45,7 @@ class Server:
         print '[SERVER] Socket created'
         s.bind( (self.ip, self.port) )
         s.listen( self.maxConnections )
-        print '[SERVER] Listening'
+        print '[SERVER] Listening on IP = %s, port = %s' % (self.ip, self.port)
 
         while True:
             (csocket, adr) = s.accept()
@@ -159,7 +136,32 @@ class Server:
         print 'GET all vars to print'
         return self.db.getAll()
 
-    
+
+def findLinuxIps():
+    # solution to get ip in LAN proposed by smerlin on
+    # http://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
+    import fcntl
+    import struct
+    def get_interface_ip(ifname):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        return socket.inet_ntoa(fcntl.ioctl( s.fileno(), 0x8915,  # SIOCGIFADDR
+                                             struct.pack('256s', ifname[:15]))[20:24])
+
+    ip = socket.gethostbyname(socket.gethostname())
+    if not ip.startswith('127.'):
+        return [ ip ]
+    else:
+        myIps = []
+        interfaces = ['eth0','eth1','eth2','wlan0','wlan1','wifi0','ath0','ath1','ppp0']
+        for ifname in interfaces:
+            try:
+                ip = get_interface_ip(ifname)
+            except IOError:
+                pass
+            else:
+                myIps.append( ip )
+        return myIps
+
 if __name__ == '__main__':
     ipFile = 'ips.txt'
     port = 4321
