@@ -10,17 +10,15 @@ class Client:
         self.port = port
         self.msgSize = msgSize
 
-    def read_ip_file( self, ip_file ):
+    def readIpFile( self, ip_file ):
         parser = ConfigParser()
         parser.read( ip_file )
         ips = [t[1] for t in parser.items('IP')]
-        print 'Read IPs from file:'
+        print 'Wczytano nastepujace adresy z pliku:'
         self.print_ips( ips )
-        #for (i, ip) in enumerate( ips ):
-        #    print '[%d] %s' % (i+1, ip)
         return ips
 
-    def print_ips( self, ips ):
+    def printIps( self, ips ):
         for (i, ip) in enumerate( ips ):
             print '[%d] %s' % (i+1, ip)
 

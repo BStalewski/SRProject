@@ -6,14 +6,14 @@ import common
 from db import DB
 
 class Server:
-    def __init__( self, ip_file, port, myNr, msgSize=100 ):
+    def __init__( self, ip_file, port, msgSize=100 ):
         self.ips = self.read_ip_file( ip_file )
         self.port = port
-        self.myNr = myNr
+        self.myNr = self.findMyIndex( self.ips )
         self.msgSize = msgSize
         self.db = DB()
 
-    def read_ip_file( self, ip_file ):
+    def readIpFile( self, ip_file ):
         parser = ConfigParser()
         parser.read( ip_file )
         ips = [t[1] for t in parser.items('IP')]
@@ -21,6 +21,17 @@ class Server:
         for (i, ip) in enumerate( ips ):
             print '[%d] %s' % (i+1, ip)
         return ips
+
+    def findMyIndex( self, ips ):
+        myIps = socket.gethostbyname_ex(socket.gethostname())[2]
+        for ip in myIps:
+            try:
+                index = ips.index( ip )
+            except:
+                pass
+            else:
+                return index
+        raise RuntimeError("None of my ips ( %s ) is in IP list ( %s )" % (myIps, ips))
 
     def start( self ):
         print '[SERVER] Starting server'
@@ -121,6 +132,8 @@ class Server:
 
     
 if __name__ == '__main__':
-    server = Server( 'ips.txt', 4321, 1 )
+    ip_file = 'ips.txt'
+    port = 4321
+    server = Server( ip_file, port )
     server.start()
 
