@@ -13,7 +13,7 @@ class Server:
         self.ip = self.ips[ self.myNr ]
         self.msgSize = msgSize
         self.db = DB()
-        self.maxConnetions = maxConn
+        self.maxConnections = maxConn
 
     def readIpFile( self, ipFile ):
         parser = ConfigParser()
@@ -67,7 +67,7 @@ class Server:
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         print '[SERVER] Socket created'
         s.bind( (self.ip, self.port) )
-        s.listen( self.maxConn )
+        s.listen( self.maxConnections )
         print '[SERVER] Listening'
 
         while True:
@@ -93,7 +93,7 @@ class Server:
                     
                     sentSize = csocket.send( filledResponse )
                     print '[SERVER] Message sent =', response
-                    if sentSize == 0:
+                    if sentSize == 0:http://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
                         print 'Unable to connect to client'
 
 
