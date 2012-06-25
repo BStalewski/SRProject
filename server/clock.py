@@ -14,13 +14,29 @@ class Clock:
         self.clock[self.myNr][self.myNr] += 1
     
     def recv(self, nr, clockVec):
-        innerNr = nr - 1
-        self.clock[innerNr] = clockVec
-        self.clock[self.myNr][innerNr] = clockVec[innerNr]
+        senderNr = nr - 1
+        self.clock[senderNr] = clockVec
+        self.clock[self.myNr][senderNr] += 1
         self.clock[self.myNr][self.myNr] += 1
 
     def getVector(self):
         return deepcopy(self.clock[self.myNr])
+
+    def getColumn(self, nr):
+        senderNr = nr - 1
+        return [vec[senderNr] for vec in self.clock]
+
+    def isSenderEarlier(self, nr, senderVec):
+        senderNr = nr - 1
+        myVector = self.getVector()
+        isEarlier = False
+        for (i, val) in enumerate(myVector):
+            if i == senderNr:
+                continue
+            isEarlier = isEarlier or val > senderVec[i]
+
+        return isEarlier
+
 
     def printState(self):
         print 'Zegar nr', (self.myNr + 1)

@@ -45,7 +45,7 @@ class Client:
                     
                 operationData = self.getOperationData( operation )
                 msg = self.prepareMessage( operation, operationData )
-                request = self.fillOutMsg( json.dumps( msg ) )
+                request = json.dumps( msg )
 
                 sentSize = conn.send( request )
 
@@ -187,15 +187,6 @@ class Client:
             raise RuntimeError('Bad operation number %s' % op)
 
         return msg
-
-    def fillOutMsg( self, msg ):
-        missingSize = self.msgSize - len( msg )
-        if missingSize < 0:
-            raise RuntimeError('Message too big')
-        filling = ''.join( [ '#' for _ in range( missingSize ) ] )
-        filledMsg = msg + filling
-
-        return filledMsg
 
     def decodeResponse( self, response ):
         jsonResponse = response.rstrip('#')

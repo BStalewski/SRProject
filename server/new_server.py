@@ -13,7 +13,7 @@ from clock import Clock
 import time
 
 class Server:
-    def __init__( self, addrFile, ip, port, msgSize=100, maxConn=5 ):
+    def __init__( self, addrFile, ip, port, msgSize=10000, maxConn=5 ):
         self.addresses = self.readAddrFile( addrFile )
         self.ip = ip
         self.port = port
@@ -70,7 +70,7 @@ class Server:
             print '[SERVER ERROR] Connection broken'
             return
 
-        msg = self.decodeRequest( request )
+        msg = json.loads( request )
         if msg['type'] not in ['DELAY', 'MISS'] and self.inDelay > 0:
             print '[SERVER] Delaying message for %d seconds' % self.inDelay
             time.sleep(self.inDelay)
@@ -107,6 +107,7 @@ class Server:
                     'value': self.handleSet( msg['name'], msg['value'] )
                 }
                 self.replicate( response )
+                self.clock.send()
             elif msg['type'] == 'GETALL':
                 response = {
                     'data': self.handlePrint()
@@ -118,51 +119,129 @@ class Server:
 
             if msg['type'] in ['GET', 'SET', 'GETALL']:
                 response['type'] = msg['type']
-                js_response = json.dumps( response )
-                filledResponse = common.fillOutMsg( js_response, self.msgSize )
-                sentSize = sock.send( filledResponse )
-                print '[SERVER] Message sent =', js_response
+                jsResponse = json.dumps( response )
+                sentSize = sock.send( jsResponse )
+                print '[SERVER] Message sent =', jsResponse
                 if sentSize == 0:
                     print '[SERVER ERROR] Unable to connect to client'
                     return
 
             try:
                 request = sock.recv( self.msgSize )
+                time.sleep( self.inDelay )
             except:
                 print '[SERVER ERROR] Connection broken'
                 return
 
     def handleServerConnection( self, sock, addr, msg ):
         if msg['type'] == 'SHARE':
-            badClockDetected = self.isMsgClockOk( msg['clocks'] )
+            badClockDetected = self.clock.isSenderEarlier( msg['sender'], msg['clocks'] )
             if badClockDetected:
-                # send REFUSE
-                pass # TODO
+                response = {
+                    'type'  : 'REFUSE',
+                    'sender': self.myNr
+                }
+                self.sendToServer( response, nr=msg['sender'] )
             else:
-                self.updateClock( msg ) # TODO
-                self.updateBuffer( msg ) # TODO
-                self.handleSet( msg['name'], msg['value'] )
+                self.updateClock( msg )
+                self.updateBuffer( msg )
+                self.handleSet( msg['name'], nr=msg['value'] )
         elif msg['type'] == 'REFUSE':
-            # send HELP
-            pass # TODO
+            response = {
+                'type'  : 'HELP',
+                'clocks': self.clock.getVector()
+            }
+            newSock = self.sendToServer( response, nr=msg['sender'] )
+            request = newSock.recv( self.msgSize )
+            time.sleep( self.inDelay )
+            msg = json.loads( request )
+            if msg['type'] != 'FILLUP':
+                return
+            
+            self.update( msg['msgs'] )
         elif msg['type'] == 'HELP':
-            # send FILLUP
-            pass # TODO
-        elif msg['type'] == 'FILLUP':
-            # apply FILLUP
-            pass # TODO
+            msgs = self.getHelpMessages( msg ):
+            response = {
+                'type': 'FILLUP',
+                'msgs': json.dumps( msgs )
+            }
+            self.sendToServer( response, sock=sock )
 
-    def isMsgClockOk( self, clocks ):
-        
+    def sendToServer( self, msg, nr=0, sock=None, resp=False ):
+        jsMsg = json.dumps( msg )
+
+        if sock is None:
+            ip, str_port = self.addresses[ nr ]
+            port = int(str_port)
+            sock = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+            try:
+                sock.connect( (ip, port) )
+            except:
+                return
+
+        try:
+            sentSize = sock.send( jsMsg )
+            if not resp:
+                sock.shutdown( socket.SHUT_RDWR )
+                sock.close()
+            else:
+                return sock
+        except:
+            pass
 
     def replicate( self, msg ):
-        # get clock, send to others
-        pass # TODO
+        myVec = self.clock.getVector()
+        repMsg = {
+            'type'  : 'SHARE',
+            'sender': self.myNr,
+            'clocks': myVec,
+            'name'  : msg['name'],
+            'value' : msg['value']
+        }
+        for i in range(self.addresses):
+            if i == self.myNr:
+                continue
+            self.sendToServer( repMsg, nr=i )
 
-    def decodeRequest(self, request):
-        jsonRequest = request.rstrip('#')
-        return json.loads( jsonRequest )
+    def updateClock( self, msg ):
+        self.clock.recv( msg['sender'], msg['clocks'] )
 
+    def canBeRemoved( msg, col ):
+        nr = msg['sender']
+        return min( col ) >= msg['clocks'][nr] 
+        #return min( clk.getColumn(nr) ) >= msg['clocks'][nr] 
+
+    def updateBuffer( self, msg ):
+        def isNotNeeded( m ):
+            sender  = m['sender']
+            return self.canBeRemoved( m, self.clock.getColumn( sender ) )
+
+        self.msgBuffer.append( msg )
+        nr = msg['sender']
+        toRemove = [ i for (i, m) in enumerate(self.msgBuffer) if isNotNeeded( m ) ]
+        #toRemove = [i for (i, m) in enumerate(self.msgBuffer) if self.canBeRemoved( m, self.clock.getColumn( nr ) )]
+        toRemove.reverse()
+
+        for i in toRemove:
+            print '[SERVER] Message discarded'
+            del self.msgBuffer[ i ]
+
+    def update( self, msgs ):
+        for msg in msgs:
+            badClockDetected = self.clock.isSenderEarlier( msg['sender'], msg['clocks'] )
+            if badClockDetected:
+                raise RuntimeError('Bad clock detected in update')
+
+            self.updateClock( msg )
+            self.updateBuffer( msg )
+            self.handleSet( msg['name'], nr=msg['value'] )
+
+    def getHelpMessages( self, msg ):
+        def isNeeded( m ):
+            sender = m['sender']
+            return not self.canBeRemoved( m, [ msg['clocks'][sender] ] )
+
+        return filter( isNeeded, self.msgBuffer )
 
     def handleGet( self, name ):
         print 'GET from db %s' % name
