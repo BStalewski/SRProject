@@ -1,48 +1,71 @@
 import socket
+import os
+import sys
 import simplejson as json
 from ConfigParser import ConfigParser
 
 import common
 from db import DB
 
+from clock import Clock
+
 class Server:
-    def __init__( self, ipFile, port, msgSize=100, maxConn=5 ):
-        self.ips = self.readIpFile( ipFile )
+    def __init__( self, addrFile, ip, port, msgSize=100, maxConn=5 ):
+        self.addresses = self.readAddrFile( addrFile )
+        self.ip = ip
         self.port = port
-        self.myNr = self.findMyIndex( self.ips )
-        self.ip = self.ips[ self.myNr ]
+        self.myNr = self.findMyIndex( self.addresses, self.ip, self.port )
         self.msgSize = msgSize
         self.db = DB()
         self.maxConnections = maxConn
+        self.inDelay = 0
+        self.outDelay = 0
+        self.miss = False
+        self.clock = Clock(self.myNr)
 
-    def readIpFile( self, ipFile ):
+    def readAddrFile( self, addrFile ):
         parser = ConfigParser()
-        parser.read( ipFile )
-        ips = [t[1] for t in parser.items('IP')]
-        print 'Read IPs from file:'
-        for (i, ip) in enumerate( ips ):
-            print '[%d] %s' % (i+1, ip)
-        return ips
+        parser.read( addrFile )
+        addresses = [ addr[1].split(':') for addr in parser.items('IP') ]
 
-    def findMyIndex( self, ips ):
-        import os
+        print 'Read addresses from the addr file:'
+        for (i, (ip, port)) in enumerate( addresses, 1 ):
+            print '[%d] %s:%s' % (i, ip, port)
+
+        return addresses
+
+    def findMyIndex( self, addresses, myIp, myPort ):
+        '''
         if os.name == 'nt':
             myIps = socket.gethostbyname_ex(socket.gethostname())[2]
         else:
             myIps = findLinuxIps()
         for ip in myIps:
+            addr = [ip, str(myPort)]
             try:
-                index = ips.index( ip )
-            except:
-                pass
+                index = addresses.index(addr)
+            except ValueError:
+                continue
             else:
                 return index
-        raise RuntimeError("None of my ips ( %s ) is in IP list ( %s )" % (myIps, ips))
+
+        raise RuntimeError("None of server ips ( %s ), port %s, is in addr list ( %s )" % (myIps, myPort, addresses))
+        '''
+        addr = [myIp, str(myPort)]
+        try:
+            index = addresses.index(addr)
+        except ValueError:
+            raise RuntimeError('Server address %s not in available addresses: %s' \
+                                % (addr, addresses))
+        else:
+            return index
+
 
     def start( self ):
         print '[SERVER] Starting server'
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
         print '[SERVER] Socket created'
+        #s.bind( ('127.0.0.1', 4321) )
         s.bind( (self.ip, self.port) )
         s.listen( self.maxConnections )
         print '[SERVER] Listening on IP = %s, port = %s' % (self.ip, self.port)
@@ -54,7 +77,7 @@ class Server:
                 try:
                     request = csocket.recv(self.msgSize)
                 except:
-                    print 'Connection broken'
+                    print '[SERVER ERROR] Connection broken'
                 else:
                     msg = self.decodeRequest( request )
                     print '[SERVER] Message received =', msg
@@ -64,6 +87,12 @@ class Server:
                         csocket.close()
                         print '[SERVER] Connection closed with', adr
                         break
+                    elif msg['type'] == 'DELAY':
+                        setDelay(msg['in'], msg['out'])
+                        break
+                    elif msg['type'] == 'MISS':
+                        setMiss(msg['miss'])
+                        break
 
                     response = self.prepareResponse( msg )
                     filledResponse = common.fillOutMsg( response, self.msgSize )
@@ -71,7 +100,7 @@ class Server:
                     sentSize = csocket.send( filledResponse )
                     print '[SERVER] Message sent =', response
                     if sentSize == 0:
-                        print 'Unable to connect to client'
+                        print '[SERVER ERROR] Unable to connect to client'
 
 
     def decodeRequest( self, request ):
@@ -95,11 +124,13 @@ class Server:
                 'name': msg['name'],
                 'deleted': result
             }
-        else:
+        elif msg['type'] == 'GETALL':
             response = {
                 'data': result
             }
-        # exit is not handled
+        else:
+            raise RuntimeError('Unknown message type %s' % msg['type'])
+
         response['type'] = msg['type']
         return json.dumps( response )
 
@@ -136,6 +167,19 @@ class Server:
         print 'GET all vars to print'
         return self.db.getAll()
 
+    def setDelay( self, inDelay, outDelay ):
+        self.inDelay = inDelay
+        self.outDelay = outDelay
+        print '[SERVER] In delay = %s, out delay = %s', (inDelay, outDelay)
+
+    def setMiss( self, miss ):
+        self.miss = miss
+        print '[SERVER] Miss = %s', miss
+
+
+class Clock:
+    def __init__( self, nr ):
+
 
 def findLinuxIps():
     # solution to get ip in LAN proposed by smerlin on
@@ -163,8 +207,16 @@ def findLinuxIps():
         return myIps
 
 if __name__ == '__main__':
-    ipFile = 'ips.txt'
-    port = 4321
-    server = Server( ipFile, port )
+    topDir = os.path.dirname( os.getcwd() )
+    addrFile = os.path.join(topDir, 'addr.txt')
+    try:
+        ip = sys.argv[1]
+        port = int( sys.argv[2] )
+    except (IndexError, ValueError):
+        ip = '127.0.0.1'
+        port = 4321
+        print 'No ip/port specified, using default value: %s:%d', (ip, port)
+
+    server = Server( addrFile, ip, port )
     server.start()
 

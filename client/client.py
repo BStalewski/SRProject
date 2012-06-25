@@ -1,26 +1,28 @@
 # Client code for reliable broadcast
 from ConfigParser import ConfigParser
 from random import randint
+import os
 import socket
 import simplejson as json
 
 class Client:
-    def __init__( self, ipFile, port, msgSize=100 ):
-        self.ips = self.readIpFile( ipFile )
-        self.port = port
+    def __init__( self, addrFile, msgSize=100 ):
+        self.addresses = self.readAddrFile( addrFile )
         self.msgSize = msgSize
 
-    def readIpFile( self, ipFile ):
+    def readAddrFile( self, addrFile ):
         parser = ConfigParser()
-        parser.read( ipFile )
-        ips = [t[1] for t in parser.items('IP')]
-        print 'Wczytano nastepujace adresy z pliku:'
-        self.printIps( ips )
-        return ips
+        parser.read( addrFile )
+        addresses = [ addr[1].split(':') for addr in parser.items('IP') ]
 
-    def printIps( self, ips ):
-        for (i, ip) in enumerate( ips ):
-            print '[%d] %s' % (i+1, ip)
+        print 'Wczytano nastepujace adresy z pliku:'
+        self.printAddresses( addresses )
+
+        return addresses
+
+    def printAddresses( self, ips ):
+        for (i, (ip, port)) in enumerate( ips, 1 ):
+            print '[%d] %s:%s' % (i, ip, port)
 
     def start( self ):
         print '***************************************************************'
@@ -50,7 +52,7 @@ class Client:
                 if sentSize == 0:
                     print 'Blad polaczenia z serwerem'
                 else:
-                    if operation == '5':
+                    if operation == '7':
                         conn.shutdown( socket.SHUT_RDWR )
                         conn.close()
                         break
@@ -63,31 +65,34 @@ class Client:
 
     def menu( self ):
         operation = None
-        while operation not in ['1', '2', '3', '4', '5']:
+        while operation not in ['1', '2', '3', '4', '5', '6', '7']:
             print 'Wybierz operacje'
             print '(1) Pobierz wartosc'
             print '(2) Ustaw wartosc'
             print '(3) Usun wartosc'
             print '(4) Wypisz wszystkie wartosci'
-            print '(5) Zakoncz polaczenie'
+            print '(5) Ustaw opoznienie pakietow'
+            print '(6) Ustaw gubienie pakietow'
+            print '(7) Zakoncz polaczenie'
             operation = raw_input('$')
 
         return operation
 
     def connectToServer( self, nr ):
-        ip = self.ips[ nr ]
+        ip, str_port = self.addresses[ nr ]
+        port = int(str_port)
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-        print 'TRY connect to %s:%s' % (ip, self.port)
+        print 'Proba polaczenia z %s:%s' % (ip, port)
         try:
-            s.connect( (ip, self.port) )
+            s.connect( (ip, port) )
         except:
             return None
         return s
 
     def chooseServer( self ):
-        ipCount = len( self.ips )
+        ipCount = len( self.addresses )
         print 'Dostepne serwery:'
-        self.printIps( self.ips )
+        self.printAddresses( self.addresses )
         print 'Polacz sie z serwerem lub zakoncz wyjdz z programu.'
         print 'Wpisz liczbe 1 - %d, aby polaczyc sie z wybranym serwerem' % ipCount
         print 'lub %d, aby polaczyc sie z losowym serwerem.' % (ipCount + 1)
@@ -126,6 +131,16 @@ class Client:
         elif op == '4':
             data = None
         elif op == '5':
+            print 'Czy opoznienie na wejsciu (t/n)?'
+            inDelay = raw_input('$').lower() == 't'
+            print 'Czy opoznienie na wyjsciu (t/n)?'
+            outDelay = raw_input('$').lower() == 't'
+            data = (inDelay, outDelay)
+        elif op == '6':
+            print 'Czy pakiety gubione przez serwer (t/n)?'
+            isMiss = raw_input('$').lower() == 't'
+            data = (isMiss,)
+        elif op == '7':
             data = None
         else:
             raise RuntimeError('Bad operation number %s' % op)
@@ -154,6 +169,17 @@ class Client:
                 'type': 'GETALL'
             }
         elif op == '5':
+            msg = {
+                'type': 'DELAY',
+                'in'  : data[0],
+                'out' : data[1]
+            }
+        elif op == '6':
+            msg = {
+                'type' : 'MISS',
+                'value': data[0]
+            }
+        elif op == '7':
             msg = {
                 'type': 'END'
             }
@@ -195,29 +221,10 @@ class Client:
         else:
             raise RuntimeError( 'Unknown response type %s' % response['type'] )
 
-    def getValue( self, name ):
-        pass
-
-    def setValue( self, name ):
-        pass
-
-    def deleteValue( self, name ):
-        pass
-
-    def printValues( self ):
-        pass
-
-    def setServerDelay( self, delay ):
-        pass
-
-    def setServerDataLose( self ):
-        pass
-
-    def unsetServerDataLose( self ):
-        pass
 
 if __name__ == '__main__':
-    ipFile = 'ips.txt'
-    port = 4321
-    client = Client( ipFile, port )
+    topDir = os.path.dirname( os.getcwd() )
+    addrFile = os.path.join(topDir, 'addr.txt')
+    client = Client( addrFile )
     client.start()
+
