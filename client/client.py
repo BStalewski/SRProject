@@ -52,10 +52,12 @@ class Client:
                 if sentSize == 0:
                     print 'Blad polaczenia z serwerem'
                 else:
-                    if operation == '7':
+                    if operation == '6':
                         conn.shutdown( socket.SHUT_RDWR )
                         conn.close()
                         break
+                    elif operation in ['4', '5']:
+                        continue
                     else:
                         print 'Otrzymano odpowiedz z serwera'
                         response = conn.recv( self.msgSize )
@@ -65,15 +67,14 @@ class Client:
 
     def menu( self ):
         operation = None
-        while operation not in ['1', '2', '3', '4', '5', '6', '7']:
+        while operation not in ['1', '2', '3', '4', '5', '6']:
             print 'Wybierz operacje'
             print '(1) Pobierz wartosc'
             print '(2) Ustaw wartosc'
-            print '(3) Usun wartosc'
-            print '(4) Wypisz wszystkie wartosci'
-            print '(5) Ustaw opoznienie pakietow'
-            print '(6) Ustaw gubienie pakietow'
-            print '(7) Zakoncz polaczenie'
+            print '(3) Wypisz wszystkie wartosci'
+            print '(4) Ustaw opoznienie pakietow'
+            print '(5) Ustaw gubienie pakietow'
+            print '(6) Zakoncz polaczenie'
             operation = raw_input('$')
 
         return operation
@@ -125,22 +126,18 @@ class Client:
             value = int( raw_input('$') )
             data = (name, value)
         elif op == '3':
-            print 'Podaj nazwe do usuniecia'
-            name = raw_input('$')
-            data = (name,)
-        elif op == '4':
             data = None
-        elif op == '5':
+        elif op == '4':
             print 'Czy opoznienie na wejsciu (t/n)?'
             inDelay = raw_input('$').lower() == 't'
             print 'Czy opoznienie na wyjsciu (t/n)?'
             outDelay = raw_input('$').lower() == 't'
             data = (inDelay, outDelay)
-        elif op == '6':
+        elif op == '5':
             print 'Czy pakiety gubione przez serwer (t/n)?'
             isMiss = raw_input('$').lower() == 't'
             data = (isMiss,)
-        elif op == '7':
+        elif op == '6':
             data = None
         else:
             raise RuntimeError('Bad operation number %s' % op)
@@ -161,25 +158,20 @@ class Client:
             }
         elif op == '3':
             msg = { 
-                'type': 'DEL',
-                'name': data[0]
-            }
-        elif op == '4':
-            msg = { 
                 'type': 'GETALL'
             }
-        elif op == '5':
+        elif op == '4':
             msg = {
                 'type': 'DELAY',
                 'in'  : data[0],
                 'out' : data[1]
             }
-        elif op == '6':
+        elif op == '5':
             msg = {
                 'type' : 'MISS',
                 'value': data[0]
             }
-        elif op == '7':
+        elif op == '6':
             msg = {
                 'type': 'END'
             }
@@ -190,6 +182,7 @@ class Client:
 
     def decodeResponse( self, response ):
         jsonResponse = response.rstrip('#')
+        print jsonResponse
         return json.loads( jsonResponse )
 
     def showResponse( self, response ):
@@ -200,15 +193,13 @@ class Client:
                 print 'Pobrano: %s = %d' % (response['name'], response['value'])
         elif response['type'] == 'SET':
             print 'Ustawiono: %s = %d' % (response['name'], response['value'])
-        elif response['type'] == 'DEL':
-            if response['deleted']:
-                print 'Usunieto: %s' % response['name']
-            else:
-                print 'Zmienna %s nie istnieje w bazie' % response['name']
         elif response['type'] == 'GETALL':
             print 'Zawartosc bazy danych:'
-            for name, value in response['data'].iteritems():
-                print '%s = %d' % (name, value)
+            if len( response['data'] ) == 0:
+                print '<PUSTA>'
+            else:
+                for name, value in response['data'].iteritems():
+                    print '%s = %d' % (name, value)
         else:
             raise RuntimeError( 'Unknown response type %s' % response['type'] )
 
