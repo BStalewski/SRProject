@@ -5,7 +5,6 @@ import simplejson as json
 from ConfigParser import ConfigParser
 from collections import deque
 
-import common
 from db import DB
 
 from clock import Clock
@@ -62,7 +61,7 @@ class Server:
             print '[SERVER] Connection from', addr
             self.handleConnection( csocket, addr )
 
-    def handleConnection( self, csocket, addr )
+    def handleConnection( self, csocket, addr ):
         try:
             request = csocket.recv( self.msgSize )
             time.sleep( self.inDelay )
@@ -160,7 +159,7 @@ class Server:
             
             self.update( msg['msgs'] )
         elif msg['type'] == 'HELP':
-            msgs = self.getHelpMessages( msg ):
+            msgs = self.getHelpMessages( msg )
             response = {
                 'type': 'FILLUP',
                 'msgs': json.dumps( msgs )
@@ -272,31 +271,6 @@ class Server:
         self.miss = miss
         print '[SERVER] Miss = %s', miss
 
-
-def findLinuxIps():
-    # solution to get ip in LAN proposed by smerlin on
-    # http://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
-    import fcntl
-    import struct
-    def get_interface_ip(ifname):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        return socket.inet_ntoa(fcntl.ioctl( s.fileno(), 0x8915,  # SIOCGIFADDR
-                                             struct.pack('256s', ifname[:15]))[20:24])
-
-    ip = socket.gethostbyname(socket.gethostname())
-    if not ip.startswith('127.'):
-        return [ ip ]
-    else:
-        myIps = []
-        interfaces = ['eth0','eth1','eth2','wlan0','wlan1','wifi0','ath0','ath1','ppp0']
-        for ifname in interfaces:
-            try:
-                ip = get_interface_ip(ifname)
-            except IOError:
-                pass
-            else:
-                myIps.append( ip )
-        return myIps
 
 if __name__ == '__main__':
     topDir = os.path.dirname( os.getcwd() )
