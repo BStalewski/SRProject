@@ -1,9 +1,15 @@
+# -*- coding: utf-8 -*-
 # Client code for reliable broadcast
+
 from ConfigParser import ConfigParser
 from random import randint
 import os
 import socket
 import simplejson as json
+
+#import sys
+#reload(sys)
+#sys.setdefaultencoding('utf-8')
 
 class Client:
     def __init__( self, addrFile, msgSize=100 ):
@@ -15,7 +21,7 @@ class Client:
         parser.read( addrFile )
         addresses = [ addr[1].split(':') for addr in parser.items('IP') ]
 
-        print 'Wczytano nastepujace adresy z pliku:'
+        print u'Wczytano następujące adresy z pliku:'
         self.printAddresses( addresses )
 
         return addresses
@@ -25,23 +31,23 @@ class Client:
             print '[%d] %s:%s' % (i, ip, port)
 
     def start( self ):
-        print '***************************************************************'
-        print '****************** WITAJ DROGI UZYTKOWNIKU!! ******************'
-        print '******** DZIEKUJEMY ZA SKORZYSTANIE Z NASZEGO PROGRAMU ********'
-        print '***************************************************************'
+        print u'***************************************************************'
+        print u'****************** WITAJ DROGI UŻYTKOWNIKU!! ******************'
+        print u'******** DZIĘKUJEMY ZA SKORZYSTANIE Z NASZEGO PROGRAMU ********'
+        print u'***************************************************************'
         while True:
             nr = self.chooseServer()
             if nr in ['q', 'Q']:
-                print 'Koniec dzialania klienta'
+                print u'Koniec działania klienta'
                 break
                         
             conn = self.connectToServer( nr - 1 )
             if conn is None:
-                print 'Nie mozna polaczyc sie z tym serwerem'
+                print u'Nie można połączyć się z tym serwerem'
                 continue
             
             while True:
-                operation = self.menu()
+                operation = self.menu( nr )
                     
                 operationData = self.getOperationData( operation )
                 msg = self.prepareMessage( operation, operationData )
@@ -50,7 +56,7 @@ class Client:
                 sentSize = conn.send( request )
 
                 if sentSize == 0:
-                    print 'Blad polaczenia z serwerem'
+                    print u'Błąd połączenia z serwerem'
                 else:
                     if operation == '6':
                         conn.shutdown( socket.SHUT_RDWR )
@@ -59,23 +65,27 @@ class Client:
                     elif operation in ['4', '5']:
                         continue
                     else:
-                        print 'Otrzymano odpowiedz z serwera'
+                        print 'Przed'
                         response = conn.recv( self.msgSize )
+                        print u'Otrzymano odpowiedź z serwera'
                         decodedResponse = self.decodeResponse( response )
                         self.showResponse( decodedResponse )
 
 
-    def menu( self ):
+    def menu( self, nr ):
         operation = None
         while operation not in ['1', '2', '3', '4', '5', '6']:
-            print 'Wybierz operacje'
-            print '(1) Pobierz wartosc'
-            print '(2) Ustaw wartosc'
-            print '(3) Wypisz wszystkie wartosci'
-            print '(4) Ustaw opoznienie pakietow'
-            print '(5) Ustaw gubienie pakietow'
-            print '(6) Zakoncz polaczenie'
-            operation = raw_input('$')
+            print u'*' * 40
+            print u'Połączenie z serwerem numer %d' % nr
+            print u'Wybierz operację'
+            print u'(1) Pobierz wartość'
+            print u'(2) Ustaw wartość'
+            print u'(3) Wypisz wszystkie wartości'
+            print u'(4) Ustaw opóźnienie pakietów'
+            print u'(5) Ustaw gubienie pakietów'
+            print u'(6) Zakończ połączenie'
+            operation = raw_input(u'Operacja: ')
+            print '*' * 40
 
         return operation
 
@@ -83,7 +93,7 @@ class Client:
         ip, str_port = self.addresses[ nr ]
         port = int(str_port)
         s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
-        print 'Proba polaczenia z %s:%s' % (ip, port)
+        print u'Próba połączenia z %s:%s' % (ip, port)
         try:
             s.connect( (ip, port) )
         except:
@@ -92,21 +102,21 @@ class Client:
 
     def chooseServer( self ):
         ipCount = len( self.addresses )
-        print 'Dostepne serwery:'
+        print u'Dostępne serwery:'
         self.printAddresses( self.addresses )
-        print 'Polacz sie z serwerem lub zakoncz wyjdz z programu.'
-        print 'Wpisz liczbe 1 - %d, aby polaczyc sie z wybranym serwerem' % ipCount
-        print 'lub %d, aby polaczyc sie z losowym serwerem.' % (ipCount + 1)
-        print 'Wpisz Q lub q, aby zakonczyc program.'
+        print u'Połącz się z serwerem lub zakończ wyjdź z programu.'
+        print u'Wpisz liczbę 1 - %d, aby połączyć się z wybranym serwerem' % ipCount
+        print u'lub %d, aby połączyć się z losowym serwerem.' % (ipCount + 1)
+        print u'Wpisz Q lub q, aby zakończyć program.'
         while True:
             userInput = raw_input('$')
             try:
                 nr = int( userInput )
                 if nr < 1 or nr > ipCount + 1:
-                    print 'Bledny numer. Podaj jeszcze raz'
+                    print u'Błędny numer. Podaj jeszcze raz'
                 elif nr == ipCount + 1:
                     nr = randint( 1, ipCount )
-                    print 'Wybrano losowy serwer numer:', nr
+                    print u'Wybrano losowy serwer numer:', nr
             except:
                 if userInput in ['q', 'Q']:
                     return userInput
@@ -116,31 +126,31 @@ class Client:
 
     def getOperationData( self, op ):
         if op == '1':
-            print 'Podaj nazwe do pobrania'
-            name = raw_input('$')
+            print u'Podaj nazwę do pobrania'
+            name = raw_input(u'Nazwa zmiennej: ')
             data = (name,)
         elif op == '2':
-            print 'Podaj nazwe'
-            name = raw_input('$')
-            print 'Podaj wartosc'
-            value = int( raw_input('$') )
+            print u'Podaj nazwę'
+            name = raw_input(u'Nazwa zmiennej: ')
+            print u'Podaj wartość'
+            value = int( raw_input(u'Wartosc zmiennej: ') )
             data = (name, value)
         elif op == '3':
             data = None
         elif op == '4':
-            print 'Czy opoznienie na wejsciu (t/n)?'
-            inDelay = raw_input('$').lower() == 't'
-            print 'Czy opoznienie na wyjsciu (t/n)?'
-            outDelay = raw_input('$').lower() == 't'
+            print u'Czy opóżnienie na wejściu (t/n)?',
+            inDelay = raw_input('').lower() == 't'
+            print u'Czy opóźnienie na wyjściu (t/n)?',
+            outDelay = raw_input('').lower() == 't'
             data = (inDelay, outDelay)
         elif op == '5':
-            print 'Czy pakiety gubione przez serwer (t/n)?'
-            isMiss = raw_input('$').lower() == 't'
+            print u'Czy pakiety są gubione przez serwer (t/n)?',
+            isMiss = raw_input('').lower() == 't'
             data = (isMiss,)
         elif op == '6':
             data = None
         else:
-            raise RuntimeError('Bad operation number %s' % op)
+            raise RuntimeError(u'Bad operation number %s' % op)
 
         return data
 
@@ -176,7 +186,7 @@ class Client:
                 'type': 'END'
             }
         else:
-            raise RuntimeError('Bad operation number %s' % op)
+            raise RuntimeError(u'Bad operation number %s' % op)
 
         return msg
 
@@ -186,22 +196,23 @@ class Client:
         return json.loads( jsonResponse )
 
     def showResponse( self, response ):
-        if response['type'] == 'GET':
-            if response['value'] is None:
-                print 'Zmienna %s nie istnieje' % response['name']
+        if response['type'] == 'RGET':
+            value = response.get( 'value' )
+            if value is None:
+                print u'Zmienna %s nie istnieje' % response['name']
             else:
-                print 'Pobrano: %s = %d' % (response['name'], response['value'])
-        elif response['type'] == 'SET':
-            print 'Ustawiono: %s = %d' % (response['name'], response['value'])
-        elif response['type'] == 'GETALL':
-            print 'Zawartosc bazy danych:'
+                print u'Pobrano: %s = %d' % (response['name'], value)
+        elif response['type'] == 'OK':
+            print u'Ustawiono'
+        elif response['type'] == 'RGETALL':
+            print u'Zawartość bazy danych:'
             if len( response['data'] ) == 0:
-                print '<PUSTA>'
+                print u'<PUSTA>'
             else:
                 for name, value in response['data'].iteritems():
                     print '%s = %d' % (name, value)
         else:
-            raise RuntimeError( 'Unknown response type %s' % response['type'] )
+            raise RuntimeError( u'Unknown response type %s' % response['type'] )
 
 
 if __name__ == '__main__':

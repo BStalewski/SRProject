@@ -1,36 +1,41 @@
-import sqlite3
+import pickle
 
 class DB:
     def __init__( self, filename='data.db', purge=True ):
-        self.conn = sqlite3.connect( filename )
+        self.filename = filename
         if purge:
             self.purge()
+            self.state = {}
+        else:
+            self.state = self.getAll()
 
     def purge( self ):
-        cursor = self.conn.cursor()
-        cursor.execute('DROP TABLE IF EXISTS numbers')
-        cursor.execute('CREATE TABLE numbers(name text, value integer)')
-        self.conn.commit()
-        
+        self.state = {}
+        pickled = pickle.dumps( {} )
+        with open( self.filename, 'wb' ) as f:
+            f.write( pickled )
+
     def getValue( self, name ):
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT value FROM numbers WHERE name = ?', (name,))
-        result = cursor.fetchone()
-        return None if result is None else result[0]
+        return self.state.get( name )
 
     def setValue( self, name, value ):
-        cursor = self.conn.cursor()
-        cursor.execute('INSERT INTO numbers VALUES (?, ?)', (name, value))
-        self.conn.commit()
-
-    def delValue( self, name ):
-        cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM numbers WHERE name = ?', (name,))
-        self.conn.commit()
+        self.state[ name ] = value
+        pickled = pickle.dumps( self.state )
+        with open( self.filename, 'wb' ) as f:
+            f.write( pickled )
 
     def getAll( self ):
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM numbers')
-        allData = cursor.fetchall()
-        return dict( allData )
+        return dict( self.state )
+
+    def getClocks( self ):
+        with open( self.clocks_file, 'rb' ) as f:
+            content = f.read()
+
+        return pickle.loads( content )
+
+    def saveClocks( self, clocks ):
+        pickled = pickle.dumps( clocks )
+
+        with open( self.clocks_file, 'wb' ) as f:
+            f.write( pickled )
 

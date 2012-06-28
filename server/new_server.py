@@ -28,17 +28,15 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         data = self.request.recv( self.state.msgSize )
         msg = json.loads( data )
         
-        # TODO: to method
-        if msg['type'] not in ['DELAY', 'MISS'] and self.state.inDelay > 0:
-            self.logger.debug('Delaying message for %d seconds' % self.state.inDelay)
-            #print '[SERVER] Delaying message for %d seconds' % self.state.inDelay
-            time.sleep( self.state.inDelay )
-
-        #print '[SERVER] Message received =', msg
         self.logger.debug('Message received = %s' % msg)
         if self.isClientMsg( msg['type'] ):
             self.handleClientConnection( msg )
         elif self.isServerMsg( msg['type'] ):
+            # TODO: to method
+            if self.state.inDelay > 0:
+                self.logger.debug('Delaying message for %d seconds' % self.state.inDelay)
+                time.sleep( self.state.inDelay )
+            print 'INEK'
             self.handleServerConnection( msg )
         else:
             raise RuntimeError('Unknown message type: %s' % msg['type'])
@@ -54,27 +52,30 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
     def handleClientConnection( self, msg ):
         while True:
             if msg['type'] == 'END':
-                #self.request.shutdown( socket.SHUT_RDWR )
-                #self.request.close()
                 strAddr = self.client_address[0] + ':' + str(self.client_address[1])
                 self.logger.debug('Connection closed with %s' % strAddr)
-                #print '[SERVER] Connection closed with', self.client_address
                 return
             elif msg['type'] == 'GET':
                 response = {
+                    'type' : 'RGET',
                     'name' : msg['name'],
                     'value': self.handleGet( msg['name'] )
                 }
             elif msg['type'] == 'SET':
+                print '************* BEGIN SET **************'
+                self.state.clock.printState()
                 self.handleSet( msg['name'], msg['value'] )
                 response = {
-                    'name' : msg['name'],
-                    'value': msg['value']
+                    'type': 'OK'
                 }
-                self.replicate( response )
+                myVec = self.state.clock.getVector()
+                self.replicate( msg['name'], msg['value'], myVec )
                 self.state.clock.send()
+                print '************* END SET ****************'
+                self.state.clock.printState()
             elif msg['type'] == 'GETALL':
                 response = {
+                    'type': 'RGETALL',
                     'data': self.handlePrint()
                 }
             elif msg['type'] == 'DELAY':
@@ -83,14 +84,11 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
                 self.handleMiss( msg['miss'] )
 
             if msg['type'] in ['GET', 'SET', 'GETALL']:
-                response['type'] = msg['type']
                 jsResponse = json.dumps( response )
                 sentSize = self.request.send( jsResponse )
                 self.logger.debug('Message sent = %s' % jsResponse)
-                #print '[SERVER] Message sent =', jsResponse
                 if sentSize == 0:
                     self.logger.error('Unable to connect to client')
-                    #print '[SERVER ERROR] Unable to connect to client'
                     return
 
             try:
@@ -98,27 +96,31 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
                 msg = json.loads( data )
                 if msg['type'] not in ['DELAY', 'MISS'] and self.state.inDelay > 0:
                     self.logger.debug('Delaying message for %d seconds' % self.state.inDelay)
-                    #print '[SERVER] Delaying message for %d seconds' % self.state.inDelay
                     time.sleep( self.state.inDelay )
             except:
                 self.logger.error('Connection broken')
-                #print '[SERVER ERROR] Connection broken'
                 return
 
     def handleServerConnection( self, msg ):
         if msg['type'] == 'SHARE':
+            print '************* BEGIN SHARE **************'
+            self.state.clock.printState()
             badClockDetected = self.state.clock.isSenderEarlier( msg['sender'], msg['clocks'] )
             if badClockDetected:
+                self.logger.debug('Sender has bad clock')
                 response = {
                     'type'  : 'REFUSE',
-                    'sender': self.state.myNr
+                    'sender': self.state.myNr,
+                    'clocks': self.state.getVector()
                 }
                 self.sendToServer( response, nr=msg['sender'] )
             else:
+                self.logger.debug('Sender has correct clock')
                 self.updateClock( msg )
                 self.updateBuffer( msg )
                 self.handleSet( msg['name'], msg['value'] )
-
+            print '************* END SHARE ****************'
+            self.state.clock.printState()
         elif msg['type'] == 'REFUSE':
             response = {
                 'type'  : 'HELP',
@@ -135,43 +137,51 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
 
         elif msg['type'] == 'HELP':
             msgs = self.getHelpMessages( msg )
+            print 'HELP MESSAGES:', msgs
             response = {
                 'type': 'FILLUP',
-                'msgs': json.dumps( msgs )
+                'msgs': msgs
             }
             self.sendToServer( response, sock=self.request )
 
-    def sendToServer( self, msg, nr=0, sock=None, resp=False ):
+    def sendToServer( self, msg, nr=None, sock=None, resp=False ):
         jsMsg = json.dumps( msg )
 
         if sock is None:
+            print 'new sock'
             ip, str_port = self.state.addresses[ nr ]
             port = int(str_port)
             sock = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
             try:
+                print 'new sock conn'
                 sock.connect( (ip, port) )
             except:
                 return
 
         try:
+            print 'try sock'
             sentSize = sock.send( jsMsg )
-            if not resp:
-                sock.shutdown( socket.SHUT_RDWR )
-                sock.close()
-            else:
+            print 'after sent'
+            #if not resp:
+            #    sock.shutdown( socket.SHUT_RDWR )
+            #    sock.close()
+            #else:
+            #    return sock
+            if resp:
                 return sock
-        except:
-            pass
+        except Exception as e:
+            print 'Error during help messages'
+            print e
 
-    def replicate( self, msg ):
-        myVec = self.state.clock.getVector()
+    def replicate( self, name, value, vec ):
         repMsg = {
             'type'  : 'SHARE',
             'sender': self.state.myNr,
-            'clocks': myVec,
-            'name'  : msg['name'],
-            'value' : msg['value']
+            'clocks': vec,
+            'name'  : name,
+            'value' : value
         }
+        self.updateBuffer( repMsg )
         for i in range( len(self.state.addresses) ):
             if i == self.state.myNr:
                 continue
@@ -181,9 +191,20 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         self.state.clock.recv( msg['sender'], msg['clocks'] )
 
     def canBeRemoved( self, msg, col ):
+        '''
         nr = msg['sender']
-        return min( col ) >= msg['clocks'][nr] 
+        colCopy = col[:]
+        colCopy[ nr ] -= 1
+        print colCopy, nr, msg['clocks']
+        return min( colCopy ) >= msg['clocks'][nr] 
+        '''
         #return min( clk.getColumn(nr) ) >= msg['clocks'][nr] 
+        nr = msg['sender']
+        colCopy = col[:]
+        #colCopy[ nr ] += 1
+        #colCopy[ self.state.myNr ] += 1
+        print colCopy, nr, msg['clocks']
+        return min( colCopy ) >= msg['clocks'][nr] 
 
     def updateBuffer( self, msg ):
         def isNotNeeded( m ):
@@ -193,13 +214,15 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         self.state.msgBuffer.append( msg )
         nr = msg['sender']
         toRemove = [ i for (i, m) in enumerate(self.state.msgBuffer) if isNotNeeded( m ) ]
-        #toRemove = [i for (i, m) in enumerate(self.msgBuffer) if self.canBeRemoved( m, self.clock.getColumn( nr ) )]
         toRemove.reverse()
 
+        '''
         for i in toRemove:
             self.logger.debug('Message discarded')
-            #print '[SERVER] Message discarded'
             del self.state.msgBuffer[ i ]
+        '''
+
+        self.logger.debug( '%d remaining message(s) in the buffer' % len(self.state.msgBuffer) )
 
     def update( self, msgs ):
         for msg in msgs:
@@ -212,39 +235,39 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
             self.handleSet( msg['name'], msg['value'] )
 
     def getHelpMessages( self, msg ):
-        def isNeeded( m ):
-            sender = m['sender']
-            return not self.canBeRemoved( m, [ msg['clocks'][sender] ] )
+        msgs = []
+        myVec = self.state.clock.getVector()
 
-        return filter( isNeeded, self.state.msgBuffer )
+        for i in range( len( self.state.addresses ) ):
+            missing = myVec[i] - msg['clocks'][i]
+            if missing > 0:
+                msgs += filter( lambda m: m['sender'] == i, self.state.msgBuffer )[:missing]
+
+        return msgs
+        #return filter( isNeeded, self.state.msgBuffer )
 
     def handleGet( self, name ):
-        self.logger.debug('GET from db %s' % name)
-        #print 'GET from db %s' % name
+        self.logger.debug('GET from db: %s' % name)
         return self.state.db.getValue( name )
 
     def handleSet( self, name, value ):
-        self.logger.debug('SET in db %s = %d' % (name, value))
-        #print 'SET in db %s = %d' % (name, value)
+        self.logger.debug('SET in db: %s = %d' % (name, value))
         self.state.db.setValue( name, value )
 
     def handlePrint( self ):
-        self.logger.debug('GET all vars to print')
-        #print 'GET all vars to print'
+        self.logger.debug('GET all vars')
         return self.state.db.getAll()
 
     def handleDelay( self, inDelay, outDelay ):
         self.state.inDelay = inDelay
         self.state.outDelay = outDelay
         self.logger.debug('In delay = %s, out delay = %s' % (inDelay, outDelay))
-        #print '[SERVER] In delay = %s, out delay = %s', (inDelay, outDelay)
 
     def handleMiss( self, miss ):
         self.state.miss = miss
         self.logger.debug('Miss = %s' % miss)
-        #print '[SERVER] Miss = %s', miss
 
-class SRServer(SocketServer.TCPServer):
+class SRServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     
     def __init__(self, addrFile, dbFile, server_address, handler_class, msgSize=10000):
         addresses = self.readAddrFile( addrFile )
@@ -266,16 +289,23 @@ class SRServer(SocketServer.TCPServer):
         return self.state
 
 class ServerState(object):
-    def __init__( self, addresses, dbFile, server_address, msgSize ):
+    def __init__( self, addresses, dbFile, server_address, msgSize, init_clocks=True ):
         self._addresses = addresses
         self._ip, self._port = server_address
-        self._myNr = self.findMyIndex( self._addresses, self._ip, self._port )
+        self._myNr = self.findMyNr( self._addresses, self._ip, self._port )
         self._msgSize = msgSize
         self._db = DB( filename=dbFile )
         self._inDelay = 0
         self._outDelay = 0
         self._miss = False
-        self._clock = Clock(self._myNr)
+        if init_clocks:
+            self._clock = Clock( self._myNr, len(addresses) )
+        else:
+            try:
+                self._clock = self._db.getClocks()
+            except IOError:
+                print 'Error: cannot load clocks from file, initiating'
+                self._clock = Clock( self._myNr, len(addresses) )
         self._msgBuffer = deque()
 
     def getAddresses( self ):
@@ -322,21 +352,29 @@ class ServerState(object):
 
     def getClock( self ):
         return self._clock
-    clock = property( getClock  )
+    def setClock( self, clock ):
+        self._clock = clock
+    clock = property( getClock, setClock )
 
     def getMsgBuffer( self ):
         return self._msgBuffer
     msgBuffer = property( getMsgBuffer )
 
-    def findMyIndex( self, addresses, myIp, myPort ):
+    def findMyNr( self, addresses, myIp, myPort ):
         addr = [myIp, str(myPort)]
         try:
-            index = addresses.index(addr)
+            return addresses.index(addr)
         except ValueError:
             raise RuntimeError('Server address %s not in available addresses: %s' \
                                 % (addr, addresses))
-        else:
-            return index
+
+    def clockSend( self ):
+        self.clock.send()
+        self.db.saveClocks( self.clock )
+
+    def clockRecv( self, senderNr, clockVec ):
+        self.clock.recv( senderNr, clockVec )
+        self.db.saveClocks( self.clock )
 
 
 if __name__ == '__main__':
@@ -347,8 +385,8 @@ if __name__ == '__main__':
         port = int( sys.argv[2] )
         dbFile = sys.argv[3]
     except (IndexError, ValueError):
-        ip = '127.0.0.1'
-        port = 4321
+        ip = '192.168.1.167'
+        port = 4000
         dbFile = 'data.db'
         print 'No ip/port specified, using default value: %s:%d', (ip, port)
 
@@ -360,3 +398,4 @@ if __name__ == '__main__':
     server = SRServer( addrFile, dbFile, server_address, SRRequestHandler )
     #server = SocketServer.TCPServer( server_address, SRRequestHandler )
     server.serve_forever()
+
