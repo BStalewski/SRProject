@@ -5,10 +5,12 @@ class Clock:
         self.myNr = myNr
         self.clock = [ [0] * count for _ in range(count) ]
 
-    def refuse( self, sender ):
-        self.clock[self.myNr][sender] -= 1
-        # old clock without sender
+    #def refuse( self ):
+    def refuse( self ):
+        #self.clock[self.myNr][sender] -= 1
+        # comment in new clock without sender
         #self.clock[self.myNr][self.myNr] -= 1
+        self.clock[self.myNr][self.myNr] -= 1
 
     def send( self ):
         self.clock[self.myNr][self.myNr] += 1
