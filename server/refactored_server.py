@@ -8,8 +8,9 @@ from ConfigParser import ConfigParser
 from collections import deque
 
 from refactored_db import DB
+from message_buffer import MessageBuffer
 
-from clock import Clock
+from refactored_clock import Clock
 
 import time
 import logging
@@ -32,7 +33,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         msg = json.loads( data )
         
         self.logger.debug('Message received = %s' % msg)
-        self.logger.debug('Message from %s' % (self.client_address[0] + ':' + self.client_address[1]))
+        self.logger.debug( 'Message from %s' % (self.client_address[0] + ':' + str(self.client_address[1])) )
         if self.is_client_msg( msg['type'] ):
             self.handle_client_connection( msg )
         elif self.is_server_msg( msg['type'] ):
@@ -47,145 +48,205 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         return msg_type in ['SHARE', 'REFUSE', 'HELP', 'FILLUP']
 
     def handle_client_connection( self, msg ):
-        while True:
+        want_recv = True
+        while want_recv:
             if msg['type'] == 'END':
-                strAddr = self.client_address[0] + ':' + str(self.client_address[1])
-                self.logger.debug('Connection closed with %s' % strAddr)
-                return
+                self.handle_end()
+                want_recv = False
             elif msg['type'] == 'GET':
-                response = {
-                    'type' : 'RGET',
-                    'name' : msg['name'],
-                    'value': self.handle_get( msg['name'] )
-                }
+                want_recv = self.handle_get( msg )
             elif msg['type'] == 'SET':
-                print '************* BEGIN SET **************'
-                self.state.clock.print_state()
-                self.handle_set( msg['name'], msg['value'] )
-                response = {
-                    'type': 'OK'
-                }
-                my_vec = self.state.clock.get_vector()
-                # only here staring a new thread should be made
-                # in other connections client won't be blocked unnecessarily
-                replicate_thread = threading.Thread( target=thread_replicate, args=(self, msg['name'], msg['value'], my_vec) )
-                replicate_thread.start()
-                #self.replicate( msg['name'], msg['value'], my_vec )
-                self.state.clock.send()
-                print '************* END SET ****************'
-                self.state.clock.print_state()
+                want_recv = self.handle_set( msg )
             elif msg['type'] == 'GETALL':
-                response = {
-                    'type': 'RGETALL',
-                    'data': self.handle_print()
-                }
+                want_recv = self.handle_print()
             elif msg['type'] == 'DELAY':
-                self.handle_delay( msg['in'], msg['out'] )
-            elif msg['type'] == 'MISS':
-                self.handle_miss( msg['in'], msg['out'] )
+                want_recv = self.handle_delay( msg )
+            else: # msg['type'] == 'MISS'
+                want_recv = self.handle_miss( msg )
 
-            if msg['type'] in ['GET', 'SET', 'GETALL']:
-                js_response = json.dumps( response )
-                sent_size = self.request.send( js_response )
-                self.logger.debug('Message sent = %s' % js_response)
-                if sent_size == 0:
-                    self.logger.error('Unable to connect to client')
-                    return
+            if want_recv:
+                try:
+                    data = self.request.recv( self.state.msg_size )
+                    msg = json.loads( data )
+                except:
+                    self.logger.error('Connection with client %s broken' % self.client_address)
+                    want_recv = False
 
-            try:
-                data = self.request.recv( self.state.msg_size )
-                msg = json.loads( data )
-            except:
-                self.logger.error('Connection broken')
-                return
+    ''' CLIENT MESSAGES
+        handle messages return True if they ended with no errors, otherwise False'''
+
+    def handle_end( self ):
+        strAddr = self.client_address[0] + ':' + str(self.client_address[1])
+        self.logger.debug('Connection closed with %s' % strAddr)
+        return True
+
+    def handle_get( self, msg ):
+        response_msg = {
+            'type' : 'RGET',
+            'name' : msg['name'],
+            'value': self.state.db.get_value( msg['name'] )
+        }
+        self.logger.debug('GET from db: %s' % msg['name'])
+        return self.send_response( response_msg ) > 0
+
+    def handle_set( self, msg ):
+        self.logger.debug('************* BEGIN SET **************')
+        self.state.clock.print_state()
+
+        self.state.db.set_value( msg['name'], msg['value'] )
+        self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
+
+        response_msg = {
+            'type': 'OK'
+        }
+        sent_size = self.send_response( response_msg )
+
+        # only here staring a new thread should be made
+        # in other connections client won't be blocked unnecessarily
+        my_vec = self.state.clock.get_vector()
+        replicate_thread = threading.Thread( target=thread_replicate, args=(self, msg['name'], msg['value'], my_vec) )
+        replicate_thread.start()
+        self.state.clock.send()
+
+        self.logger.debug('************* END SET ****************')
+        self.state.clock.print_state()
+
+        return sent_size > 0
+
+    def handle_print( self ):
+        response_msg = {
+            'type': 'RGETALL',
+            'data': self.state.db.get_all()
+        }
+        self.logger.debug('GET all vars')
+        return self.send_response( response_msg ) > 0
+
+    def handle_delay( self, msg ):
+        self.state.in_delay = msg['in']
+        self.state.out_delay = msg['out']
+        self.logger.debug('Updated delay: in delay = %s, out delay = %s' % (msg['in'], msg['out']))
+        return True
+
+    def handle_miss( self, msg ):
+        self.state.in_miss = msg['in']
+        self.state.out_miss = msg['out']
+        self.logger.debug('Updated miss: in miss = %s, out miss = %s' % (msg['in'], msg['out']))
+        return True
+
+    def send_response( self, response_msg ):
+        js_response = json.dumps( response_msg )
+        sent_size = self.request.send( js_response )
+        if sent_size == 0:
+            self.logger.error('Unable to connect to client')
+        else:
+            self.logger.debug('Message sent = %s' % js_response)
+        return sent_size
+
+    ''' SERVER MESSAGES
+        handle messages return True if they ended with no errors, otherwise False'''
 
     def handle_server_connection( self, msg ):
         if msg['type'] == 'SHARE':
-            if self.state.in_miss:
-                self.logger.debug('In message %s dropped' % msg)
-                return
-            if self.state.in_delay > 0:
-                self.logger.debug('Delaying message %s for %d seconds' % (msg['type'], self.state.in_delay))
-                time.sleep( self.state.in_delay )
-
-            if self.find_in_buffer( msg['clocks'], msg['sender'] ):
-                self.logger.debug('Share msg from the same sender %d in the buffer, ignoring it' % msg['sender'])
-                return
-
-            print '************* BEGIN SHARE **************'
-            self.state.clock.print_state()
-            if self.is_msg_refusable( msg ):
-                self.logger.debug('Sender %d has bad clock' % msg['sender'])
-                response = {
-                    'type'  : 'REFUSE',
-                    'sender': self.state.my_nr,
-                    'clocks': msg['clocks']
-                }
-                self.send_to_server( response, nr=msg['sender'] )
-            else:
-                need_help = msg['clocks'] > self.state.clock.get_vector()
-                if need_help:
-                    response = {
-                        'type'  : 'HELP',
-                        'clocks': self.state.clock.get_vector()
-                    }
-                    new_sock = self.send_to_server( response, nr=msg['sender'], resp=True )
-                    self.logger.debug('Help sent to %d with clocks %s' % (msg['sender'], response['clocks']))
-                    data = new_sock.recv( self.state.msg_size )
-                    resp_msg = json.loads( data )
-                    if resp_msg['type'] != 'FILLUP':
-                        return
-                    
-                    self.logger.debug('Fillup received from %d with msgs = %s' % (msg['sender'], resp_msg['msgs']))
-                    time.sleep( self.state.in_delay )
-                    self.update( resp_msg['msgs'] )
-
-                else:
-                    self.logger.debug('Sender %d has correct clock' % msg['sender'])
-                    self.update_clock( msg )
-                    self.update_buffer( msg )
-                    self.handle_set( msg['name'], msg['value'] )
-
-            print '************* END SHARE ****************'
-            self.state.clock.print_state()
+            self.handle_share( msg )
         elif msg['type'] == 'REFUSE':
-            self.logger.debug('Refuse from %d with clocks %s' % (msg['sender'], msg['clocks']))
-            #refuseClocks = msg['clocks']
-            if not self.find_in_buffer( msg['clocks'], self.state.my_nr ):
-                return
-            refused_msg = self.get_from_buffer( msg['clocks'], self.state.my_nr )
+            self.handle_refuse( msg )
+        else: # msg['type'] == 'HELP'
+            self.handle_help( msg )
 
-            self.state.clock.refuse()
+    def handle_share( self, msg ):
+        if self.simulate_failures( msg, 'in' ):
+            return
 
+        if self.is_in_buffer( msg['clocks'], msg['sender'] ):
+            self.logger.debug('Share msg from the same sender %d in the buffer, ignoring it' % msg['sender'])
+            return
+
+        if self.is_msg_refusable( msg ):
+            self.logger.debug('Share sender %d has bad clock' % msg['sender'])
             response = {
-                'type'  : 'HELP',
-                'clocks': self.state.clock.get_vector()
+                'type'  : 'REFUSE',
+                'sender': self.state.my_nr,
+                'clocks': msg['clocks']
             }
-            new_sock = self.send_to_server( response, nr=msg['sender'], resp=True )
-            self.logger.debug('Help sent to %d with clocks %s' % (msg['sender'], response['clocks']))
-            data = new_sock.recv( self.state.msg_size )
-            resp_msg = json.loads( data )
-            if resp_msg['type'] != 'FILLUP':
-                return
-            
-            self.logger.debug('Fillup received from %d with msgs = %s' % (msg['sender'], resp_msg['msgs']))
-            time.sleep( self.state.in_delay )
-            self.update( resp_msg['msgs'], refuse=True )
+            self.send_to_server( response, nr=msg['sender'] )
+        else:
+            need_help = msg['clocks'] > self.state.clock.get_vector()
+            if need_help:
+                self.request_for_help_messages( msg )
+            else:
+                # msg['clocks'] == self.state.clock.get_vector()
+                self.logger.debug('************* BEGIN SHARE **************')
+                self.state.clock.print_state()
+                self.logger.debug('Share sender %d has correct clock' % msg['sender'])
+                self.update_clock( msg )
+                self.update_buffer( msg )
 
+                self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
+                self.state.db.set_value( msg['name'], msg['value'] )
+                self.state.clock.print_state()
+                self.logger.debug('************* END SHARE ****************')
+
+    def handle_refuse( self, msg ):
+        self.logger.debug('Refuse from %d with clocks %s' % (msg['sender'], msg['clocks']))
+        if not self.is_in_buffer( msg['clocks'], self.state.my_nr ):
+            return
+
+        refused_msg = self.get_from_buffer( msg['clocks'], self.state.my_nr )
+        self.state.clock.refuse()
+
+        help_correct = self.request_for_help_messages( msg )
+        if help_correct:
             my_vec = self.state.clock.get_vector()
-            self.handle_set( refused_msg['name'], refused_msg['value'] )
+            self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
+            self.state.db.set_value( msg['name'], msg['value'] )
             self.replicate( refused_msg['name'], refused_msg['value'], my_vec )
 
-        elif msg['type'] == 'HELP':
-            self.logger.debug('Help received from %s with clocks = %s' % (self.request, msg['clocks']))
-            msgs = self.get_help_messages( msg )
-            print 'HELP MESSAGES:', msgs
-            response = {
-                'type': 'FILLUP',
-                'msgs': msgs
-            }
-            self.send_to_server( response, sock=self.request )
-            self.logger.debug('Fillup sent to %s with msgs: %s' % (self.request, response['msgs']))
+    def handle_help( self, msg ):
+        self.logger.debug('Help request received from %s with clocks = %s' % (self.request, msg['clocks']))
+        msgs = self.get_help_messages( msg )
+        self.logger('Sending help messages %s' % msgs)
+        response = {
+            'type': 'FILLUP',
+            'msgs': msgs
+        }
+        self.send_to_server( response, sock=self.request )
+        self.logger.debug('Fillup sent to %s with msgs: %s' % (self.request, response['msgs']))
+
+    def request_for_help_messages( self, msg ):
+        self.state.debug('I need help from sender %d' % msg['sender'])
+        help_msg = {
+            'type'  : 'HELP',
+            'clocks': self.state.clock.get_vector()
+        }
+        new_sock = self.send_to_server( help_msg, nr=msg['sender'], resp=True )
+        self.logger.debug('Help sent to %d with clocks %s' % (msg['sender'], help_msg['clocks']))
+
+        data = new_sock.recv( self.state.msg_size )
+        fillup_msg = json.loads( data )
+        if fillup_msg['type'] != 'FILLUP':
+            self.logger.debug('Received wrong response for help %s, ignoring it' % fillup_msg)
+            return False
+        
+        self.logger.debug('Fillup received from %d with msgs = %s' % (msg['sender'], fillup_msg['msgs']))
+        # TODO: fillup delay&miss
+        failure = self.simulate_failures( fillup_msg, 'in' )
+        if failure:
+            return False
+        else:
+            self.update( fillup_msg['msgs'] )
+            return True
+
+    def simulate_failures( self, msg, direction='in' ):
+        is_miss = self.state.in_miss if direction == 'in' else self.state.out_miss
+        delay = self.state.in_delay if direction == 'in' else self.state.out_delay
+        if is_miss:
+            self.logger.debug('DROPPED message %s' % msg)
+            return True
+        else:
+            if delay > 0:
+                self.logger.debug('DELAYING message %s for %d seconds' % (msg['type'], self.state.in_delay))
+                time.sleep( delay )
+            return False
 
     def send_to_server( self, msg, nr=None, sock=None, resp=False ):
         js_msg = json.dumps( msg )
@@ -197,6 +258,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
             try:
                 sock.connect( (ip, port) )
             except:
+                self.logger.error('Unable to connect to server %s:%s' % (ip, str_port))
                 return
 
         try:
@@ -204,8 +266,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
             if resp:
                 return sock
         except Exception as e:
-            print 'Error during help messages'
-            print e
+            self.logger.error('Error during help messages: %s' % e)
 
     def replicate( self, name, value, vec ):
         rep_msg = {
@@ -217,16 +278,12 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         }
         self.update_buffer( rep_msg )
 
-        if self.state.out_miss:
-            self.logger.debug('Out message replicate %s dropped' % rep_msg)
+        if self.simulate_failures( rep_msg, 'out' ):
             return
-        if self.state.out_delay > 0:
-            self.logger.debug('Delaying out replicate message for %d seconds' % self.state.out_delay)
-            time.sleep( self.state.out_delay )
 
-        for i in range( len(self.state.addresses) ):
-            if i == self.state.my_nr:
-                continue
+        others_numbers = filter( lambda n: n != self.state.my_nr,
+                                 range( len(self.state.addresses) ) )
+        for i in others_numbers:
             self.send_to_server( rep_msg, nr=i )
             self.logger.debug('Replication with clocks = %s sent to %d' % (vec, i))
 
@@ -235,18 +292,16 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
 
     def can_be_removed( self, msg, col ):
         nr = msg['sender']
-        print 'Trying to remove msg from the buffer'
-        print 'Sender column in my column:', col, 'Sender nr:', nr, 'Msg clocks:', msg['clocks']
-        print 'Checking if min(col) > msg[clocks][nr] :: ', min(col), '>', msg['clocks'][nr]
+        self.logger.log('Trying to remove msg from the buffer')
+        self.logger.log('Sender column in my column:', col, 'Sender nr:', nr, 'Msg clocks:', msg['clocks'])
+        self.logger.log('Checking if min(col) > msg[clocks][nr] :: ', min(col), '>', msg['clocks'][nr])
+
         return min( col ) > msg['clocks'][nr] 
 
     def is_msg_refusable( self, msg ):
+        # not normal share and i dont need help
         my_vec = self.state.clock.get_vector()
-        for (i, msg_time) in enumerate(msg['clocks']):
-            if msg_time < my_vec[i]:
-                return True
-
-        return False
+        return msg['clocks'] != my_vec and not msg['clocks'] > my_vec
 
     def update_buffer( self, msg ):
         def is_not_needed( m ):
@@ -267,21 +322,25 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         self.get_from_buffer( clocks, sender )
 
     def find_in_buffer( self, clocks, sender ):
+        return self.get_from_buffer( clocks, sender, remove=False )
+
+    def is_in_buffer( self, clocks, sender ):
         for msg in self.state.msg_buffer:
             if msg['clocks'] == clocks and msg['sender'] == sender:
                 return True
 
         return False
 
-    def get_from_buffer( self, clocks, sender ):
-        foundMsg = None
+    def get_from_buffer( self, clocks, sender, remove=True ):
+        found_msg = None
         for (i, msg) in enumerate(self.state.msg_buffer):
             if msg['clocks'] == clocks and msg['sender'] == sender:
-                foundMsg = msg
+                found_msg = msg
 
-        if foundMsg:
-            self.state.msg_buffer.remove( foundMsg )
-            return foundMsg
+        if found_msg:
+            if remove:
+                self.state.msg_buffer.remove( found_msg )
+            return found_msg
         else:
             return None
 
@@ -292,7 +351,8 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
 
             self.update_clock( msg )
             self.update_buffer( msg )
-            self.handle_set( msg['name'], msg['value'] )
+            self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
+            self.state.db.set_value( msg['name'], msg['value'] )
 
     def get_help_messages( self, msg ):
         msgs = []
@@ -305,27 +365,6 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
 
         return msgs
 
-    def handle_get( self, name ):
-        self.logger.debug('GET from db: %s' % name)
-        return self.state.db.get_value( name )
-
-    def handle_set( self, name, value ):
-        self.logger.debug('SET in db: %s = %d' % (name, value))
-        self.state.db.set_value( name, value )
-
-    def handle_print( self ):
-        self.logger.debug('GET all vars')
-        return self.state.db.get_all()
-
-    def handle_delay( self, in_delay, out_delay ):
-        self.state.in_delay = in_delay
-        self.state.out_delay = out_delay
-        self.logger.debug('Updated delay: in delay = %s, out delay = %s' % (in_delay, out_delay))
-
-    def handle_miss( self, in_miss, out_miss ):
-        self.state.in_miss = in_miss
-        self.state.out_miss = out_miss
-        self.logger.debug('Updated miss: in miss = %s, out miss = %s' % (in_miss, out_miss))
 
 class SRServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     
@@ -367,7 +406,7 @@ class ServerState(object):
             except IOError:
                 print 'Error: cannot load clocks from file, initiating'
                 self._clock = Clock( self._my_nr, len(addresses) )
-        self._msg_buffer = deque()
+        self._msg_buffer = MessageBuffer()
 
     def get_addresses( self ):
         return self._addresses
@@ -457,13 +496,8 @@ if __name__ == '__main__':
         db_file = 'data.db'
         print 'No ip/port specified, using default value: %s:%d', (ip, port)
 
-    # TODO: clean up
-    #server = Server( addr_file, ip, port )
-    #server.start()
-
     server_address = (ip, port)
     server = SRServer( addr_file, db_file, server_address, SRRequestHandler )
-    #server = SocketServer.TCPServer( server_address, SRRequestHandler )
     server.serve_forever()
 
 
