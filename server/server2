@@ -1,0 +1,100 @@
+Read addresses from the addr file:
+[1] 192.168.1.167:4000
+[2] 192.168.1.135:4001
+[3] 192.168.1.167:4002
+('192.168.1.167', 61174)
+************* BEGIN SHARE **************
+Zegar nr 3
+|    0    0    0 |
+|    0    0    0 |
+|    0    0    0 |
+[1, 0, 1] 0 [0, 0, 0]
+0 > 0
+************* END SHARE ****************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+('192.168.1.167', 61177)
+************* BEGIN SHARE **************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+new sock
+new sock conn
+try sock
+after sent
+************* END SHARE ****************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+('192.168.1.167', 61179)
+HELP MESSAGES: [{u'clocks': [0, 0, 0], u'type': u'SHARE', u'sender': 0, u'value': 8, u'name': u'a'}]
+try sock
+after sent
+('192.168.1.135', 49434)
+************* BEGIN SHARE **************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+new sock
+new sock conn
+try sock
+after sent
+************* END SHARE ****************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+('192.168.1.135', 49437)
+************* BEGIN SHARE **************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+new sock
+new sock conn
+try sock
+after sent
+************* END SHARE ****************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+('192.168.1.135', 49438)
+HELP MESSAGES: [{u'clocks': [0, 0, 0], u'type': u'SHARE', u'sender': 0, u'value': 8, u'name': u'a'}]
+try sock
+after sent
+('192.168.1.135', 49440)
+************* BEGIN SHARE **************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+new sock
+new sock conn
+try sock
+after sent
+('192.168.1.135', 49441)
+HELP MESSAGES: []
+try sock
+after sent
+('192.168.1.135', 49443)
+************* BEGIN SHARE **************
+Zegar nr 3
+|    1    0    0 |
+|    0    0    0 |
+|    1    0    0 |
+new sock
+new sock conn
+try sock
+after sent
+--------------------------------------------------------------------------------
+
+Exception happened during processing of request fromException happened during processing of request from  (('192.168.1.135''192.168.1.135', , 4944349440))
+
+----------------------------------------
+----------------------------------------

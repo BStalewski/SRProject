@@ -1,0 +1,110 @@
+Read addresses from the addr file:
+[1] 192.168.1.167:4000
+[2] 192.168.1.135:4001
+[3] 192.168.1.167:4002
+('192.168.1.167', 61172)
+************* BEGIN SET **************
+Zegar nr 1
+|    0    0    0 |
+|    0    0    0 |
+|    0    0    0 |
+[0, 0, 0] 0 [0, 0, 0]
+0 > 0
+new sock
+new sock conn
+try sock
+after sent
+new sock
+new sock conn
+try sock
+after sent
+************* END SET ****************
+Zegar nr 1
+|    1    0    0 |
+|    0    0    0 |
+|    0    0    0 |
+('192.168.1.135', 49432)
+new sock
+new sock conn
+try sock
+after sent
+[1, 1, 0] 1 [0, 0, 0]
+0 > 0
+[1, 1, 0] 1 [0, 0, 0]
+0 > 0
+[0, 0, 0] 0 [0, 1, 0]
+0 > 0
+new sock
+new sock conn
+try sock
+after sent
+new sock
+new sock conn
+try sock
+after sent
+('192.168.1.167', 61178)
+new sock
+new sock conn
+try sock
+after sent
+----------------------------------------
+Exception happened during processing of request from ('192.168.1.167', 61178)
+----------------------------------------
+('192.168.1.135', 49433)
+************* BEGIN SHARE **************
+Zegar nr 1
+|   -1    1    0 |
+|    0    1    0 |
+|    0    0    0 |
+new sock
+new sock conn
+try sock
+after sent
+************* END SHARE ****************
+Zegar nr 1
+|   -1    1    0 |
+|    0    1    0 |
+|    0    0    0 |
+('192.168.1.135', 49435)
+HELP MESSAGES: [{u'clocks': [0, 0, 0], u'type': u'SHARE', u'sender': 1, u'value': 1, u'name': u'a'}]
+try sock
+after sent
+('192.168.1.135', 49436)
+************* BEGIN SHARE **************
+Zegar nr 1
+|   -1    1    0 |
+|    0    1    0 |
+|    0    0    0 |
+new sock
+new sock conn
+try sock
+after sent
+('192.168.1.135', 49439)
+************* BEGIN SHARE **************
+Zegar nr 1
+|   -1    1    0 |
+|    0    1    0 |
+|    0    0    0 |
+new sock
+new sock conn
+try sock
+after sent
+----------------------------------------
+Exception happened during processing of request from ('192.168.1.135', 49436)
+('192.168.1.135', 49442)
+************* BEGIN SHARE **************
+Zegar nr 1
+|   -1    1    0 |
+|    0    1    0 |
+|    0    0    0 |
+new sock
+new sock conn
+----------------------------------------
+try sock
+after sent
+----------------------------------------
+Exception happened during processing of request from ('192.168.1.135', 49442)
+----------------------------------------
+Exception happened during processing of request from ('192.168.1.135', 49439)
+----------------------------------------
+----------------------------------------
