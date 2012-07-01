@@ -7,10 +7,6 @@ import os
 import socket
 import simplejson as json
 
-#import sys
-#reload(sys)
-#sys.setdefaultencoding('utf-8')
-
 class Client:
     def __init__( self, addrFile, msgSize=100 ):
         self.addresses = self.readAddrFile( addrFile )
@@ -138,15 +134,17 @@ class Client:
         elif op == '3':
             data = None
         elif op == '4':
-            print u'Czy opóżnienie na wejściu (t/n)?',
-            inDelay = raw_input('').lower() == 't'
-            print u'Czy opóźnienie na wyjściu (t/n)?',
-            outDelay = raw_input('').lower() == 't'
+            print u'Opóżnienie na wejściu =',
+            inDelay = int( raw_input('') )
+            print u'Opóźnienie na wyjściu =',
+            outDelay = int( raw_input('') )
             data = (inDelay, outDelay)
         elif op == '5':
-            print u'Czy pakiety są gubione przez serwer (t/n)?',
-            isMiss = raw_input('').lower() == 't'
-            data = (isMiss,)
+            print u'Czy pakiety wejściowe są gubione przez serwer (t/n)?',
+            inMiss = raw_input('').lower() == 't'
+            print u'Czy pakiety wyjściowe są gubione przez serwer (t/n)?',
+            outMiss = raw_input('').lower() == 't'
+            data = (inMiss, outMiss)
         elif op == '6':
             data = None
         else:
@@ -179,7 +177,8 @@ class Client:
         elif op == '5':
             msg = {
                 'type' : 'MISS',
-                'value': data[0]
+                'in'   : data[0],
+                'out'  : data[1]
             }
         elif op == '6':
             msg = {
