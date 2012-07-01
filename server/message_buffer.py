@@ -20,7 +20,7 @@ class MessageBuffer:
 
         return min( col ) > msg['clocks'][nr] 
 
-    def update_buffer( self, msg, clock ):
+    def update( self, msg, clock ):
         def is_not_needed( m ):
             sender  = m['sender']
             return self.can_be_removed( m, clock.getColumn( sender ) )
@@ -37,16 +37,16 @@ class MessageBuffer:
         self.lock.release()
         self.logger.debug( '%d remaining message(s) in the buffer' % len(self.buf) )
 
-    def remove_from_buffer( self, clocks, sender ):
-        self.get_from_buffer( clocks, sender )
+    def remove( self, clocks, sender ):
+        self.get_message( clocks, sender )
 
-    def find_in_buffer( self, clocks, sender ):
-        return self.get_from_buffer( clocks, sender, remove=False )
+    def find( self, clocks, sender ):
+        return self.get_message( clocks, sender, remove=False )
 
     def is_in_buffer( self, clocks, sender ):
-        return self.get_from_buffer( clocks, sender, remove=False ) is not None
+        return self.get_message( clocks, sender, remove=False ) is not None
 
-    def get_from_buffer( self, clocks, sender, remove=True ):
+    def get_message( self, clocks, sender, remove=True ):
         self.lock.acquire()
         matching_msgs = filter( lambda m: m['clocks'] == clocks and m['sender'] == sender, self.buf )
         try:
@@ -59,4 +59,11 @@ class MessageBuffer:
 
         self.lock.release()
         return found_msg
+
+    def get_last_messages( self, sender_nr, msg_count ):
+        self.lock.acquire()
+        msgs = filter( lambda m: m['sender'] == sender_nr, self.buf )[:msg_count]
+        self.lock.release()
+
+        return msgs
 

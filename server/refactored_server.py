@@ -5,7 +5,6 @@ import sys
 import threading
 import simplejson as json
 from ConfigParser import ConfigParser
-from collections import deque
 
 from refactored_db import DB
 from message_buffer import MessageBuffer
@@ -157,7 +156,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         if self.simulate_failures( msg, 'in' ):
             return
 
-        if self.is_in_buffer( msg['clocks'], msg['sender'] ):
+        if self.state.msg_buffer.is_in_buffer( msg['clocks'], msg['sender'] ):
             self.logger.debug('Share msg from the same sender %d in the buffer, ignoring it' % msg['sender'])
             return
 
@@ -179,7 +178,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
                 self.state.clock.print_state()
                 self.logger.debug('Share sender %d has correct clock' % msg['sender'])
                 self.update_clock( msg )
-                self.update_buffer( msg )
+                self.state.msg_buffer.update( msg )
 
                 self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
                 self.state.db.set_value( msg['name'], msg['value'] )
@@ -188,10 +187,10 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
 
     def handle_refuse( self, msg ):
         self.logger.debug('Refuse from %d with clocks %s' % (msg['sender'], msg['clocks']))
-        if not self.is_in_buffer( msg['clocks'], self.state.my_nr ):
+        if not self.state.msg_buffer.is_in_buffer( msg['clocks'], self.state.my_nr ):
             return
 
-        refused_msg = self.get_from_buffer( msg['clocks'], self.state.my_nr )
+        refused_msg = self.state.msg_buffer.get_message( msg['clocks'], self.state.my_nr )
         self.state.clock.refuse()
 
         help_correct = self.request_for_help_messages( msg )
@@ -276,7 +275,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
             'name'  : name,
             'value' : value
         }
-        self.update_buffer( rep_msg )
+        self.state.msg_buffer.update( rep_msg )
 
         if self.simulate_failures( rep_msg, 'out' ):
             return
@@ -290,59 +289,10 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
     def update_clock( self, msg ):
         self.state.clock.recv( msg['sender'], msg['clocks'][:] )
 
-    def can_be_removed( self, msg, col ):
-        nr = msg['sender']
-        self.logger.log('Trying to remove msg from the buffer')
-        self.logger.log('Sender column in my column:', col, 'Sender nr:', nr, 'Msg clocks:', msg['clocks'])
-        self.logger.log('Checking if min(col) > msg[clocks][nr] :: ', min(col), '>', msg['clocks'][nr])
-
-        return min( col ) > msg['clocks'][nr] 
-
     def is_msg_refusable( self, msg ):
         # not normal share and i dont need help
         my_vec = self.state.clock.get_vector()
         return msg['clocks'] != my_vec and not msg['clocks'] > my_vec
-
-    def update_buffer( self, msg ):
-        def is_not_needed( m ):
-            sender  = m['sender']
-            return self.can_be_removed( m, self.state.clock.getColumn( sender ) )
-
-        self.state.msg_buffer.append( msg )
-        to_remove = [ i for (i, m) in enumerate(self.state.msg_buffer) if is_not_needed( m ) ]
-        to_remove.reverse()
-
-        for i in to_remove:
-            self.logger.debug('Message discarded')
-            del self.state.msg_buffer[ i ]
-
-        self.logger.debug( '%d remaining message(s) in the buffer' % len(self.state.msg_buffer) )
-
-    def remove_from_buffer( self, clocks, sender ):
-        self.get_from_buffer( clocks, sender )
-
-    def find_in_buffer( self, clocks, sender ):
-        return self.get_from_buffer( clocks, sender, remove=False )
-
-    def is_in_buffer( self, clocks, sender ):
-        for msg in self.state.msg_buffer:
-            if msg['clocks'] == clocks and msg['sender'] == sender:
-                return True
-
-        return False
-
-    def get_from_buffer( self, clocks, sender, remove=True ):
-        found_msg = None
-        for (i, msg) in enumerate(self.state.msg_buffer):
-            if msg['clocks'] == clocks and msg['sender'] == sender:
-                found_msg = msg
-
-        if found_msg:
-            if remove:
-                self.state.msg_buffer.remove( found_msg )
-            return found_msg
-        else:
-            return None
 
     def update( self, msgs ):
         for msg in msgs:
@@ -350,7 +300,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
                 raise RuntimeError('Bad clock detected in update')
 
             self.update_clock( msg )
-            self.update_buffer( msg )
+            self.state.msg_buffer.update( msg )
             self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
             self.state.db.set_value( msg['name'], msg['value'] )
 
@@ -360,8 +310,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
 
         for i in range( len( self.state.addresses ) ):
             missing = my_vec[i] - msg['clocks'][i]
-            if missing > 0:
-                msgs += filter( lambda m: m['sender'] == i, self.state.msg_buffer )[:missing]
+            msgs += self.msg_buffer.get_last_messages( i, missing )
 
         return msgs
 
