@@ -14,9 +14,9 @@ class MessageBuffer:
 
     def can_be_removed( self, msg, col ):
         nr = msg['sender']
-        self.logger.log('Trying to remove msg from the buffer')
-        self.logger.log('Sender column in my column:', col, 'Sender nr:', nr, 'Msg clocks:', msg['clocks'])
-        self.logger.log('Checking if min(col) > msg[clocks][nr] :: ', min(col), '>', msg['clocks'][nr])
+        self.logger.debug('Trying to remove msg from the buffer')
+        self.logger.debug('Sender column in my column: %s, sender nr: %s, msg clocks: %s' % (col, nr, msg['clocks']))
+        self.logger.debug('Checking if min(col) > msg[clocks][nr] :: %s > %s' % (min(col), msg['clocks'][nr]))
 
         return min( col ) > msg['clocks'][nr] 
 
@@ -31,7 +31,7 @@ class MessageBuffer:
         to_remove.reverse()
 
         for i in to_remove:
-            self.logger.debug('Message discarded')
+            self.logger.debug('Message discarded: %s' % self.buf[i])
             del self.buf[ i ]
 
         self.lock.release()

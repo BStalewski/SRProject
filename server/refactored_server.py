@@ -68,7 +68,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
                     data = self.request.recv( self.state.msg_size )
                     msg = json.loads( data )
                 except:
-                    self.logger.error('Connection with client %s broken' % self.client_address)
+                    self.logger.error('Connection with client %s broken' % self.client_address[0])
                     want_recv = False
 
     ''' CLIENT MESSAGES
@@ -178,7 +178,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
                 self.state.clock.print_state()
                 self.logger.debug('Share sender %d has correct clock' % msg['sender'])
                 self.update_clock( msg )
-                self.state.msg_buffer.update( msg )
+                self.state.msg_buffer.update( msg, self.state.clock )
 
                 self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
                 self.state.db.set_value( msg['name'], msg['value'] )
@@ -196,14 +196,14 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         help_correct = self.request_for_help_messages( msg )
         if help_correct:
             my_vec = self.state.clock.get_vector()
-            self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
-            self.state.db.set_value( msg['name'], msg['value'] )
+            self.logger.debug('SET in db: %s = %d' % (refused_msg['name'], refused_msg['value']))
+            self.state.db.set_value( refused_msg['name'], refused_msg['value'] )
             self.replicate( refused_msg['name'], refused_msg['value'], my_vec )
 
     def handle_help( self, msg ):
         self.logger.debug('Help request received from %s with clocks = %s' % (self.request, msg['clocks']))
         msgs = self.get_help_messages( msg )
-        self.logger('Sending help messages %s' % msgs)
+        self.logger.debug('Sending help messages %s' % msgs)
         response = {
             'type': 'FILLUP',
             'msgs': msgs
@@ -212,7 +212,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
         self.logger.debug('Fillup sent to %s with msgs: %s' % (self.request, response['msgs']))
 
     def request_for_help_messages( self, msg ):
-        self.state.debug('I need help from sender %d' % msg['sender'])
+        self.logger.debug('I need help from sender %d' % msg['sender'])
         help_msg = {
             'type'  : 'HELP',
             'clocks': self.state.clock.get_vector()
@@ -275,7 +275,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
             'name'  : name,
             'value' : value
         }
-        self.state.msg_buffer.update( rep_msg )
+        self.state.msg_buffer.update( rep_msg, self.state.clock )
 
         if self.simulate_failures( rep_msg, 'out' ):
             return
@@ -300,7 +300,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
                 raise RuntimeError('Bad clock detected in update')
 
             self.update_clock( msg )
-            self.state.msg_buffer.update( msg )
+            self.state.msg_buffer.update( msg, self.state.clock )
             self.logger.debug('SET in db: %s = %d' % (msg['name'], msg['value']))
             self.state.db.set_value( msg['name'], msg['value'] )
 
@@ -310,7 +310,7 @@ class SRRequestHandler(SocketServer.BaseRequestHandler):
 
         for i in range( len( self.state.addresses ) ):
             missing = my_vec[i] - msg['clocks'][i]
-            msgs += self.msg_buffer.get_last_messages( i, missing )
+            msgs += self.state.msg_buffer.get_last_messages( i, missing )
 
         return msgs
 
