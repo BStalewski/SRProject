@@ -7,7 +7,7 @@ class DB:
             self.purge()
             self.state = {}
         else:
-            self.state = self.getAll()
+            self.state = self.get_all()
 
     def purge( self ):
         self.state = {}
@@ -15,27 +15,28 @@ class DB:
         with open( self.filename, 'wb' ) as f:
             f.write( pickled )
 
-    def getValue( self, name ):
+    def get_value( self, name ):
         return self.state.get( name )
 
-    def setValue( self, name, value ):
+    def set_value( self, name, value ):
         self.state[ name ] = value
         pickled = pickle.dumps( self.state )
         with open( self.filename, 'wb' ) as f:
             f.write( pickled )
 
-    def getAll( self ):
+    def get_all( self ):
         return dict( self.state )
 
-    def getClocks( self ):
+    def get_clocks( self ):
         with open( self.clocks_file, 'rb' ) as f:
             content = f.read()
 
         return pickle.loads( content )
 
-    def saveClocks( self, clocks ):
+    def save_clocks( self, clocks ):
         pickled = pickle.dumps( clocks )
 
         with open( self.clocks_file, 'wb' ) as f:
             f.write( pickled )
+
 
